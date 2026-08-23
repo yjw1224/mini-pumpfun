@@ -11,7 +11,7 @@ contract BondingCurve is Ownable {
     address public immutable master;
     address public immutable creator;
 
-    uint256 private constant INITIAL_PRICE = 1e6; // 1 USDC
+    uint256 private immutable INITIAL_PRICE; // 1 USDC
     uint256 public constant FEE = 100; // 100bp fee (1%)
     uint256 public constant FEE_MASTER = 70; // 70bp fee to master (0.7%)
     uint256 public virtualTokenReserve;
@@ -20,12 +20,13 @@ contract BondingCurve is Ownable {
     uint256 public realTokenReserve = 0;
     uint256 public realUSDCReserve = 0;
 
-    constructor(address _token, address _fakeUSDC, address _master) Ownable(msg.sender) {
+    constructor(address _token, address _fakeUSDC, address _master, uint256 _initialPrice) Ownable(msg.sender) {
         isInitialized = false;
         token = MemeToken(_token);
         fakeUSDC = IERC20(_fakeUSDC);
 
         virtualTokenReserve = 1000 * 1e18; // 1000 token
+        INITIAL_PRICE = _initialPrice; // 1 USDC
         virtualUSDCReserve = INITIAL_PRICE * virtualTokenReserve / 1e18;
 
         realTokenReserve = 100 * 1e18; // 100 token

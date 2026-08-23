@@ -15,13 +15,14 @@ contract BondingCurveTest is Test {
     address creator = makeAddr("creator");
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
+    uint256 constant initialTokenPrice = 1e6; // 1 USDC
 
     function setUp() public {
         fakeUSDC = new FakeUSDC();
         vm.prank(creator);
         memeToken = new MemeToken("Meme Token", "MT");
         vm.prank(creator);
-        curve = new BondingCurve(address(memeToken), address(fakeUSDC), master);
+        curve = new BondingCurve(address(memeToken), address(fakeUSDC), master, initialTokenPrice);
         vm.prank(creator);
         memeToken.setCurve(address(curve));
         vm.prank(creator);

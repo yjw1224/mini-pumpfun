@@ -13,6 +13,7 @@ contract BondingCurve is Ownable {
 
     uint256 private constant INITIAL_PRICE = 1e6; // 1 USDC
     uint256 public constant FEE = 100; // 100bp fee (1%)
+    uint256 public constant FEE_MASTER = 70; // 70bp fee to master (0.7%)
     uint256 public virtualTokenReserve;
     uint256 public virtualUSDCReserve;
     
@@ -41,19 +42,26 @@ contract BondingCurve is Ownable {
 
     function buy(uint256 amountIn) external returns (uint256 amountOut) {
         require(amountIn > 0, "Amount in must be greater than 0");
-        amountOut = (virtualTokenReserve * amountIn) / (virtualUSDCReserve + amountIn);
+
+        uint256 fee = amountIn * FEE / 10000;
+        uint256 masterFee = fee * FEE_MASTER / FEE;
+        uint256 creatorFee = fee - masterFee;
+        uint256 amountInAfterFee = amountIn - fee;
+        amountOut = (virtualTokenReserve * amountInAfterFee) / (virtualUSDCReserve + amountInAfterFee);
 
         require(realTokenReserve >= amountOut, "Not enough tokens in reserve");
 
         // Transfer USDC from buyer to this contract
         fakeUSDC.transferFrom(msg.sender, address(this), amountIn);
+        fakeUSDC.transfer(master, masterFee); // Transfer fee to master
+        fakeUSDC.transfer(creator, creatorFee); // Transfer fee to creator
         token.transfer(msg.sender, amountOut);
 
         virtualTokenReserve -= amountOut;
-        virtualUSDCReserve += amountIn;
+        virtualUSDCReserve += amountInAfterFee;
 
         realTokenReserve -= amountOut;
-        realUSDCReserve += amountIn;
+        realUSDCReserve += amountInAfterFee;
     }
 
     function sell(uint256 amountIn) external returns (uint256 amountOut) {
@@ -64,7 +72,14 @@ contract BondingCurve is Ownable {
 
         // Transfer tokens from seller to this contract
         token.transferFrom(msg.sender, address(this), amountIn);
-        fakeUSDC.transfer(msg.sender, amountOut);
+
+        uint256 fee = amountOut * FEE / 10000;
+        uint256 masterFee = fee * FEE_MASTER / FEE;
+        uint256 creatorFee = fee - masterFee;
+
+        fakeUSDC.transfer(msg.sender, amountOut - fee);
+        fakeUSDC.transfer(master, masterFee); // Transfer fee to master
+        fakeUSDC.transfer(creator, creatorFee); // Transfer fee to creator
 
         virtualTokenReserve += amountIn;
         virtualUSDCReserve -= amountOut;

@@ -2,13 +2,14 @@
 pragma solidity ^0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract MemeToken is ERC20 {
+contract MemeToken is ERC20, Ownable {
     address public curve;
 
-    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {}
+    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) Ownable(msg.sender) {}
 
-    function setCurve(address _curve) external {
+    function setCurve(address _curve) external onlyOwner {
         require(curve == address(0), "Curve already set");
         curve = _curve;
     }

@@ -7,15 +7,18 @@ contract BondingCurve {
     MemeToken public token;
     IERC20 public fakeUSDC;
     bool isInitialized;
+    address public immutable master;
+    address public immutable creator;
 
     uint256 private constant INITIAL_PRICE = 1e6; // 1 USDC
+    uint256 public constant FEE = 100; // 100bp fee (1%)
     uint256 public virtualTokenReserve;
     uint256 public virtualUSDCReserve;
     
     uint256 public realTokenReserve = 0;
     uint256 public realUSDCReserve = 0;
 
-    constructor(address _token, address _fakeUSDC) {
+    constructor(address _token, address _fakeUSDC, address _master) {
         isInitialized = false;
         token = MemeToken(_token);
         fakeUSDC = IERC20(_fakeUSDC);
@@ -24,6 +27,9 @@ contract BondingCurve {
         virtualUSDCReserve = INITIAL_PRICE * virtualTokenReserve / 1e18;
 
         realTokenReserve = 100 * 1e18; // 100 token
+
+        master = _master;
+        creator = msg.sender;
     }
 
     function initialize() external {

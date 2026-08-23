@@ -24,6 +24,7 @@ contract BondingCurveTest is Test {
         curve = new BondingCurve(address(memeToken), address(fakeUSDC), master);
         vm.prank(creator);
         memeToken.setCurve(address(curve));
+        vm.prank(creator);
         curve.initialize();
     }
 

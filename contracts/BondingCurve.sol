@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "./MemeToken.sol";
 
-contract BondingCurve {
+contract BondingCurve is Ownable {
     MemeToken public token;
     IERC20 public fakeUSDC;
     bool isInitialized;
@@ -18,7 +19,7 @@ contract BondingCurve {
     uint256 public realTokenReserve = 0;
     uint256 public realUSDCReserve = 0;
 
-    constructor(address _token, address _fakeUSDC, address _master) {
+    constructor(address _token, address _fakeUSDC, address _master) Ownable(msg.sender) {
         isInitialized = false;
         token = MemeToken(_token);
         fakeUSDC = IERC20(_fakeUSDC);
@@ -32,7 +33,7 @@ contract BondingCurve {
         creator = msg.sender;
     }
 
-    function initialize() external {
+    function initialize() external onlyOwner {
         require(!isInitialized, "Already initialized");
         token.mint(address(this), realTokenReserve);
         isInitialized = true;

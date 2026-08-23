@@ -4,17 +4,16 @@ pragma solidity ^0.8.24;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MemeToken is ERC20 {
-    address public immutable curve;
+    address public curve;
 
-    constructor(
-        string memory name_,
-        string memory symbol_,
-        address curve_
-    ) ERC20(name_, symbol_) {
-        curve = curve_;
+    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {}
+
+    function setCurve(address _curve) external {
+        require(curve == address(0), "Curve already set");
+        curve = _curve;
     }
 
-    function mint(address to, uint256 amount) external {
+    function mint(address to, uint256 amount) public {
         require(msg.sender == curve, "Only curve");
         _mint(to, amount);
     }

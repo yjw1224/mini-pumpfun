@@ -6,6 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract MemeToken is ERC20, Ownable {
     address public curve;
+    uint256 public constant MAX_SUPPLY = 1000000 * 1e18; // 1 million tokens
 
     constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) Ownable(msg.sender) {}
 
@@ -16,6 +17,7 @@ contract MemeToken is ERC20, Ownable {
 
     function mint(address to, uint256 amount) public {
         require(msg.sender == curve, "Only curve");
+        require(totalSupply() + amount <= MAX_SUPPLY, "Exceeds max supply");
         _mint(to, amount);
     }
 

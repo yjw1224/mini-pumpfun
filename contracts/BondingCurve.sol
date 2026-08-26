@@ -11,9 +11,10 @@ contract BondingCurve is Ownable {
     address public immutable master;
     address public immutable creator;
 
-    uint256 private immutable INITIAL_PRICE; // 1 USDC
+    uint256 private immutable INITIAL_PRICE;
+    uint256 public constant INITIAL_TOKEN_RESERVE = 800_000 * 1e18; // 800k tokens
     uint256 public constant FEE = 100; // 100bp fee (1%)
-    uint256 public constant FEE_MASTER = 70; // 70bp fee to master (0.7%)
+    uint256 public constant FEE_PROTOCOL = 70; // 70bp fee to protocol (0.7%)
     uint256 public virtualTokenReserve;
     uint256 public virtualUSDCReserve;
     
@@ -25,11 +26,11 @@ contract BondingCurve is Ownable {
         token = MemeToken(_token);
         fakeUSDC = IERC20(_fakeUSDC);
 
-        virtualTokenReserve = 1000 * 1e18; // 1000 token
-        INITIAL_PRICE = _initialPrice; // 1 USDC
+        virtualTokenReserve = 1_000_000 * 1e18; // 1 million token
+        INITIAL_PRICE = _initialPrice;
         virtualUSDCReserve = INITIAL_PRICE * virtualTokenReserve / 1e18;
 
-        realTokenReserve = 100 * 1e18; // 100 token
+        realTokenReserve = INITIAL_TOKEN_RESERVE; // 800k token
 
         master = _master;
         creator = msg.sender;
@@ -37,20 +38,21 @@ contract BondingCurve is Ownable {
 
     function initialize() external onlyOwner {
         require(!isInitialized, "Already initialized");
-        token.mint(address(this), realTokenReserve);
+        token.mint(address(this), INITIAL_TOKEN_RESERVE);
         isInitialized = true;
     }
 
-    function buy(uint256 amountIn) external returns (uint256 amountOut) {
+    function buy(uint256 amountIn, uint256 minAmountOut) external returns (uint256 amountOut) {
         require(amountIn > 0, "Amount in must be greater than 0");
 
         uint256 fee = amountIn * FEE / 10000;
-        uint256 masterFee = fee * FEE_MASTER / FEE;
+        uint256 masterFee = fee * FEE_PROTOCOL / FEE;
         uint256 creatorFee = fee - masterFee;
         uint256 amountInAfterFee = amountIn - fee;
         amountOut = (virtualTokenReserve * amountInAfterFee) / (virtualUSDCReserve + amountInAfterFee);
 
         require(realTokenReserve >= amountOut, "Not enough tokens in reserve");
+        require(amountOut >= minAmountOut, "Slippage exceeded");
 
         // Transfer USDC from buyer to this contract
         fakeUSDC.transferFrom(msg.sender, address(this), amountIn);
@@ -65,20 +67,23 @@ contract BondingCurve is Ownable {
         realUSDCReserve += amountInAfterFee;
     }
 
-    function sell(uint256 amountIn) external returns (uint256 amountOut) {
+    function sell(uint256 amountIn, uint256 minAmountOut) external returns (uint256 amountOut) {
         require(amountIn > 0, "Amount in must be greater than 0");
         amountOut = (virtualUSDCReserve * amountIn) / (virtualTokenReserve + amountIn);
 
         require(realUSDCReserve >= amountOut, "Not enough USDC in reserve");
+        
+        uint256 fee = amountOut * FEE / 10000;
+        uint256 masterFee = fee * FEE_PROTOCOL / FEE;
+        uint256 creatorFee = fee - masterFee;
+        uint256 netAmountOut = amountOut - fee;
+
+        require(netAmountOut >= minAmountOut, "Slippage exceeded");
 
         // Transfer tokens from seller to this contract
         token.transferFrom(msg.sender, address(this), amountIn);
 
-        uint256 fee = amountOut * FEE / 10000;
-        uint256 masterFee = fee * FEE_MASTER / FEE;
-        uint256 creatorFee = fee - masterFee;
-
-        fakeUSDC.transfer(msg.sender, amountOut - fee);
+        fakeUSDC.transfer(msg.sender, netAmountOut);
         fakeUSDC.transfer(master, masterFee); // Transfer fee to master
         fakeUSDC.transfer(creator, creatorFee); // Transfer fee to creator
 

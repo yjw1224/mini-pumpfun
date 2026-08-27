@@ -2,10 +2,15 @@
 pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from
+    "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SimpleAMM} from "./SimpleAMM.sol";
 import "./MemeToken.sol";
 
-contract BondingCurve is Ownable {
+contract BondingCurve is Ownable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     MemeToken public token;
     IERC20 public fakeUSDC;
     bool isInitialized;
@@ -53,7 +58,7 @@ contract BondingCurve is Ownable {
         isInitialized = true;
     }
 
-    function buy(uint256 amountIn, uint256 minAmountOut) external returns (uint256 amountOut) {
+    function buy(uint256 amountIn, uint256 minAmountOut) external nonReentrant returns (uint256 amountOut) {
         require(amountIn > 0, "Amount in must be greater than 0");
         require(!graduated, "Cannot buy after graduation");
 
@@ -66,20 +71,20 @@ contract BondingCurve is Ownable {
         require(realTokenReserve >= amountOut, "Not enough tokens in reserve");
         require(amountOut >= minAmountOut, "Slippage exceeded");
 
-        // Transfer USDC from buyer to this contract
-        fakeUSDC.transferFrom(msg.sender, address(this), amountIn);
-        fakeUSDC.transfer(master, masterFee); // Transfer fee to master
-        fakeUSDC.transfer(creator, creatorFee); // Transfer fee to creator
-        token.transfer(msg.sender, amountOut);
-
         virtualTokenReserve -= amountOut;
         virtualUSDCReserve += amountInAfterFee;
 
         realTokenReserve -= amountOut;
         realUSDCReserve += amountInAfterFee;
+
+        // Transfer USDC from buyer to this contract
+        fakeUSDC.safeTransferFrom(msg.sender, address(this), amountIn);
+        fakeUSDC.safeTransfer(master, masterFee); // Transfer fee to master
+        fakeUSDC.safeTransfer(creator, creatorFee); // Transfer fee to creator
+        IERC20(address(token)).safeTransfer(msg.sender, amountOut);
     }
 
-    function sell(uint256 amountIn, uint256 minAmountOut) external returns (uint256 amountOut) {
+    function sell(uint256 amountIn, uint256 minAmountOut) external nonReentrant returns (uint256 amountOut) {
         require(amountIn > 0, "Amount in must be greater than 0");
         require(!graduated, "Cannot sell after graduation");
         amountOut = (virtualUSDCReserve * amountIn) / (virtualTokenReserve + amountIn);
@@ -93,18 +98,18 @@ contract BondingCurve is Ownable {
 
         require(netAmountOut >= minAmountOut, "Slippage exceeded");
 
-        // Transfer tokens from seller to this contract
-        token.transferFrom(msg.sender, address(this), amountIn);
-
-        fakeUSDC.transfer(msg.sender, netAmountOut);
-        fakeUSDC.transfer(master, masterFee); // Transfer fee to master
-        fakeUSDC.transfer(creator, creatorFee); // Transfer fee to creator
-
         virtualTokenReserve += amountIn;
         virtualUSDCReserve -= amountOut;
 
         realTokenReserve += amountIn;
         realUSDCReserve -= amountOut;
+
+        // Transfer tokens from seller to this contract
+        IERC20(address(token)).safeTransferFrom(msg.sender, address(this), amountIn);
+
+        fakeUSDC.safeTransfer(msg.sender, netAmountOut);
+        fakeUSDC.safeTransfer(master, masterFee); // Transfer fee to master
+        fakeUSDC.safeTransfer(creator, creatorFee); // Transfer fee to creator
     }
 
     function graduate() external onlyOwner {

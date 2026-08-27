@@ -2,12 +2,16 @@
 pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {FakeUSDC} from "../contracts/FakeUSDC.sol";
 import {MemeToken} from "../contracts/MemeToken.sol";
 import {LPToken} from "../contracts/LPToken.sol";
 
-contract SimpleAMM {
+contract SimpleAMM is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     IERC20 public token;
     IERC20 public fakeUSDC;
     address public immutable curve;
@@ -27,36 +31,41 @@ contract SimpleAMM {
         curve = _curve;
     }
 
-    function initializePool(uint256 tokenAmount, uint256 usdcAmount) external {
+    function initializePool(uint256 tokenAmount, uint256 usdcAmount) external nonReentrant {
         require(msg.sender == curve, "Only curve can initialize pool");
         require(tokenReserve == 0 && usdcReserve == 0, "Pool already initialized");
-        token.transferFrom(msg.sender, address(this), tokenAmount);
-        fakeUSDC.transferFrom(msg.sender, address(this), usdcAmount);
         tokenReserve = tokenAmount;
         usdcReserve = usdcAmount;
 
         totalLPSupply = Math.sqrt(tokenAmount * usdcAmount);
+
+        token.safeTransferFrom(msg.sender, address(this), tokenAmount);
+        fakeUSDC.safeTransferFrom(msg.sender, address(this), usdcAmount);
         lpToken.mint(curve, totalLPSupply);
     }
 
-    function swapTokenForUSDC(uint256 amountIn, uint256 minAmountOut) external {
+    function swapTokenForUSDC(uint256 amountIn, uint256 minAmountOut) external nonReentrant {
         require(amountIn > 0, "Amount must be greater than 0");
         uint256 amountOut = (amountIn * usdcReserve * (10000 - FEE)) / ((tokenReserve + amountIn) * 10000);
         require(amountOut > 0 && amountOut >= minAmountOut, "Insufficient output amount");
-        token.transferFrom(msg.sender, address(this), amountIn);
-        fakeUSDC.transfer(msg.sender, amountOut);
+
         tokenReserve += amountIn;
         usdcReserve -= amountOut;
+
+        token.safeTransferFrom(msg.sender, address(this), amountIn);
+        fakeUSDC.safeTransfer(msg.sender, amountOut);
     }
 
-    function swapUSDCforToken(uint256 amountIn, uint256 minAmountOut) external {
+    function swapUSDCforToken(uint256 amountIn, uint256 minAmountOut) external nonReentrant {
         require(amountIn > 0, "Amount must be greater than 0");
         uint256 amountOut = (amountIn * tokenReserve * (10000 - FEE)) / ((usdcReserve + amountIn) * 10000);
         require(amountOut > 0 && amountOut >= minAmountOut, "Insufficient output amount");
-        fakeUSDC.transferFrom(msg.sender, address(this), amountIn);
-        token.transfer(msg.sender, amountOut);
+
         usdcReserve += amountIn;
         tokenReserve -= amountOut;
+
+        fakeUSDC.safeTransferFrom(msg.sender, address(this), amountIn);
+        token.safeTransfer(msg.sender, amountOut);
     }
 
     function addLiquidity(uint256 tokenAmount, uint256 usdcAmount) external {
@@ -73,16 +82,16 @@ contract SimpleAMM {
 
         require(tokenAmountUsed > 0 && usdcAmountUsed > 0, "Insufficient liquidity amount");
 
-        token.transferFrom(msg.sender, address(this), tokenAmountUsed);
-        fakeUSDC.transferFrom(msg.sender, address(this), usdcAmountUsed);
-
         uint256 lpMinted = totalLPSupply * tokenAmountUsed / tokenReserve;
 
         tokenReserve += tokenAmountUsed;
         usdcReserve += usdcAmountUsed;
+        totalLPSupply += lpMinted;
+
+        token.safeTransferFrom(msg.sender, address(this), tokenAmountUsed);
+        fakeUSDC.safeTransferFrom(msg.sender, address(this), usdcAmountUsed);
         
         lpToken.mint(msg.sender, lpMinted);
-        totalLPSupply += lpMinted;
     }
 
     function removeLiquidity(uint256 lpAmount) external {
@@ -101,7 +110,7 @@ contract SimpleAMM {
         tokenReserve -= tokenAmount;
         usdcReserve -= usdcAmount;
 
-        token.transfer(msg.sender, tokenAmount);
-        fakeUSDC.transfer(msg.sender, usdcAmount);
+        token.safeTransfer(msg.sender, tokenAmount);
+        fakeUSDC.safeTransfer(msg.sender, usdcAmount);
     }
 }

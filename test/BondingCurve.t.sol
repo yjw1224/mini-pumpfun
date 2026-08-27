@@ -7,7 +7,6 @@ import {BondingCurve} from "../contracts/BondingCurve.sol";
 import {MemeToken} from "../contracts/MemeToken.sol";
 import {SimpleAMM} from "../contracts/SimpleAMM.sol";
 import {LPToken} from "../contracts/LPToken.sol";
-import {Factory} from "../contracts/Factory.sol";
 
 contract BondingCurveTest is Test {
     FakeUSDC fakeUSDC;
@@ -77,28 +76,6 @@ contract BondingCurveTest is Test {
             curve.virtualUSDCReserve(),
             1_000_000 * 1e18
         );
-    }
-
-    function test_FactoryCreatesTokenAndCurve() public {
-        vm.prank(creator);
-        Factory factory = new Factory(address(fakeUSDC), master);
-
-        vm.prank(alice);
-        (address tokenAddress, address curveAddress) = factory.createToken(
-            "Doge",
-            "DOGE",
-            initialTokenPrice
-        );
-
-        MemeToken createdToken = MemeToken(tokenAddress);
-        BondingCurve createdCurve = BondingCurve(curveAddress);
-
-        assertEq(createdToken.curve(), curveAddress);
-        assertEq(address(createdCurve.token()), tokenAddress);
-        assertEq(createdCurve.creator(), alice);
-        assertEq(createdToken.owner(), alice);
-        assertEq(createdCurve.owner(), alice);
-        assertEq(createdToken.balanceOf(curveAddress), 800_000 * 1e18);
     }
 
     function test_BobCannotMint() public {

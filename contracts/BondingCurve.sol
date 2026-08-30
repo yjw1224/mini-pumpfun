@@ -30,6 +30,10 @@ contract BondingCurve is Ownable, ReentrancyGuard {
     uint256 public realUSDCReserve = 0;
     SimpleAMM public amm;
 
+    event Buy(address indexed buyer, uint256 amountIn, uint256 amountOut);
+    event Sell(address indexed seller, uint256 amountIn, uint256 amountOut);
+    event Graduated(address indexed amm);
+
     constructor(
         address _token,
         address _fakeUSDC,
@@ -82,6 +86,8 @@ contract BondingCurve is Ownable, ReentrancyGuard {
         fakeUSDC.safeTransfer(master, masterFee); // Transfer fee to master
         fakeUSDC.safeTransfer(creator, creatorFee); // Transfer fee to creator
         IERC20(address(token)).safeTransfer(msg.sender, amountOut);
+
+        emit Buy(msg.sender, amountIn, amountOut);
     }
 
     function sell(uint256 amountIn, uint256 minAmountOut) external nonReentrant returns (uint256 amountOut) {
@@ -110,6 +116,8 @@ contract BondingCurve is Ownable, ReentrancyGuard {
         fakeUSDC.safeTransfer(msg.sender, netAmountOut);
         fakeUSDC.safeTransfer(master, masterFee); // Transfer fee to master
         fakeUSDC.safeTransfer(creator, creatorFee); // Transfer fee to creator
+
+        emit Sell(msg.sender, amountIn, netAmountOut);
     }
 
     function getBuyAmountOut(uint256 amountIn) external view returns (uint256 amountOut) {
@@ -141,5 +149,7 @@ contract BondingCurve is Ownable, ReentrancyGuard {
         fakeUSDC.approve(address(amm), remainingUSDC);
 
         amm.initializePool(tokenAmount, remainingUSDC);
+
+        emit Graduated(address(amm));
     }
 }

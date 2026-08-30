@@ -60,6 +60,35 @@ contract FactoryTest is Test {
         assertEq(factory.tokenToCurve(secondTokenAddress), secondCurveAddress);
     }
 
+    function test_GraduateTokenRevertsForUnknownCurve() public {
+        vm.expectRevert("Unknown curve");
+        factory.graduateToken(makeAddr("notACurve"));
+    }
+
+    function test_GraduateTokenRevertsForZeroAddress() public {
+        vm.expectRevert("Invalid curve address");
+        factory.graduateToken(address(0));
+    }
+
+    function test_GraduateTokenSucceedsForOwnCurve() public {
+        vm.prank(alice);
+        (, address curveAddress) = factory.createToken("Doge", "DOGE", INITIAL_PRICE);
+        BondingCurve curve = BondingCurve(curveAddress);
+
+        // Exact USDC amount (see BondingCurve.t.sol) needed to drain the 800k real token reserve.
+        uint256 buyAmount = 4_040_404_040_404_040_404_040_405;
+        fakeUSDC.faucet(buyAmount);
+        fakeUSDC.approve(curveAddress, buyAmount);
+        curve.buy(buyAmount, 0);
+        assertEq(curve.realTokenReserve(), 0);
+
+        // Permissionless: bob (not the creator) can trigger graduation through the Factory.
+        vm.prank(bob);
+        factory.graduateToken(curveAddress);
+
+        assertTrue(address(curve.amm()) != address(0));
+    }
+
     function test_BuyOnOneTokenDoesNotChangeTheOtherCurve() public {
         vm.prank(alice);
         (, address firstCurveAddress) = factory.createToken(

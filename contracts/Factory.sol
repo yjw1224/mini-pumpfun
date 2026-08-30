@@ -9,8 +9,10 @@ contract Factory {
 	address public immutable master;
     address[] public allTokens;
     mapping(address => address) public tokenToCurve;
+    mapping(address => bool) public isFactoryCurve;
 
 	event TokenCreated(address indexed creator, address token, address bondingCurve);
+	event TokenGraduated(address indexed token, address indexed curve, address amm);
 
 	constructor(address _fakeUSDC, address _master) {
 		fakeUSDC = _fakeUSDC;
@@ -39,7 +41,20 @@ contract Factory {
 
         allTokens.push(address(token));
         tokenToCurve[address(token)] = address(curve);
+        isFactoryCurve[address(curve)] = true;
 		emit TokenCreated(msg.sender, address(token), address(curve));
 		return (address(token), address(curve));
+	}
+
+	// Permissionless: BondingCurve.graduate() already enforces the reserve/graduated
+	// invariants, this just verifies curveAddress was actually created by this Factory.
+	function graduateToken(address curveAddress) external {
+		require(curveAddress != address(0), "Invalid curve address");
+		require(isFactoryCurve[curveAddress], "Unknown curve");
+
+		BondingCurve curve = BondingCurve(curveAddress);
+		curve.graduate();
+
+		emit TokenGraduated(address(curve.token()), curveAddress, address(curve.amm()));
 	}
 }

@@ -24,6 +24,16 @@ contract SimpleAMM is ReentrancyGuard {
     LPToken public lpToken;
     uint256 public totalLPSupply = 0;
 
+    event Swap(
+        address indexed user,
+        uint256 tokenAmountIn,
+        uint256 usdcAmountIn,
+        uint256 tokenAmountOut,
+        uint256 usdcAmountOut
+    );
+    event LiquidityAdded(address indexed provider, uint256 tokenAmount, uint256 usdcAmount, uint256 lpMinted);
+    event LiquidityRemoved(address indexed provider, uint256 tokenAmount, uint256 usdcAmount, uint256 lpBurned);
+
     constructor(address _token, address _fakeUSDC, address _curve) {
         token = IERC20(_token);
         fakeUSDC = IERC20(_fakeUSDC);
@@ -62,6 +72,8 @@ contract SimpleAMM is ReentrancyGuard {
 
         token.safeTransferFrom(msg.sender, address(this), amountIn);
         fakeUSDC.safeTransfer(msg.sender, amountOut);
+
+        emit Swap(msg.sender, amountIn, 0, 0, amountOut);
     }
 
     function swapUSDCforToken(uint256 amountIn, uint256 minAmountOut) external nonReentrant {
@@ -74,6 +86,8 @@ contract SimpleAMM is ReentrancyGuard {
 
         fakeUSDC.safeTransferFrom(msg.sender, address(this), amountIn);
         token.safeTransfer(msg.sender, amountOut);
+
+        emit Swap(msg.sender, 0, amountIn, amountOut, 0);
     }
 
     function addLiquidity(uint256 tokenAmount, uint256 usdcAmount) external {
@@ -100,6 +114,8 @@ contract SimpleAMM is ReentrancyGuard {
         fakeUSDC.safeTransferFrom(msg.sender, address(this), usdcAmountUsed);
         
         lpToken.mint(msg.sender, lpMinted);
+
+        emit LiquidityAdded(msg.sender, tokenAmountUsed, usdcAmountUsed, lpMinted);
     }
 
     function removeLiquidity(uint256 lpAmount) external {
@@ -120,5 +136,7 @@ contract SimpleAMM is ReentrancyGuard {
 
         token.safeTransfer(msg.sender, tokenAmount);
         fakeUSDC.safeTransfer(msg.sender, usdcAmount);
+
+        emit LiquidityRemoved(msg.sender, tokenAmount, usdcAmount, lpAmount);
     }
 }

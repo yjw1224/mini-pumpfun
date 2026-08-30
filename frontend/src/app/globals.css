@@ -1,0 +1,59 @@
+@import "tailwindcss";
+@import "@fontsource/pretendard/400.css";
+@import "@fontsource/pretendard/500.css";
+@import "@fontsource/pretendard/600.css";
+@import "@fontsource/pretendard/700.css";
+@import "@fontsource/roboto-mono/400.css";
+@import "@fontsource/roboto-mono/500.css";
+@import "@fontsource/roboto-mono/600.css";
+
+/*
+ * Design tokens — see docs/mini-pump-frontend-design-spec.md (sections 3, 6, 7).
+ * Do not introduce new colors/spacing/radius values outside this file.
+ * Tailwind v4 exposes every var below both as a utility (e.g. bg-surface,
+ * rounded-lg) and as a plain CSS custom property (e.g. var(--color-surface)).
+ */
+@theme {
+  --color-background: #0a0a0a;
+  --color-surface: #111111;
+  --color-surface-elevated: #171717;
+
+  --color-border: #242424;
+  --color-border-strong: #333333;
+
+  --color-text-primary: #f5f5f5;
+  --color-text-secondary: #a3a3a3;
+  --color-text-muted: #666666;
+
+  --color-primary: #00c805;
+  --color-positive: #00c805;
+  --color-negative: #ff4d4f;
+  --color-warning: #f5b942;
+  --color-info: #5b9cff;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+
+  --font-sans: "Pretendard", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, monospace;
+}
+
+/* Dark, neutral foundation is the only theme — no light-mode variant. */
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+}
+
+/* Financial figures (prices, balances, percentages) must use tabular numerals. */
+.font-financial {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}

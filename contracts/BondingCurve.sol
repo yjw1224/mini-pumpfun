@@ -112,7 +112,20 @@ contract BondingCurve is Ownable, ReentrancyGuard {
         fakeUSDC.safeTransfer(creator, creatorFee); // Transfer fee to creator
     }
 
-    function graduate() external onlyOwner {
+    function getBuyAmountOut(uint256 amountIn) external view returns (uint256 amountOut) {
+        uint256 fee = amountIn * FEE / 10000;
+        uint256 amountInAfterFee = amountIn - fee;
+        amountOut = (virtualTokenReserve * amountInAfterFee) / (virtualUSDCReserve + amountInAfterFee);
+    }
+
+    function getSellAmountOut(uint256 amountIn) external view returns (uint256 netAmountOut) {
+        uint256 amountOut = (virtualUSDCReserve * amountIn) / (virtualTokenReserve + amountIn);
+        uint256 fee = amountOut * FEE / 10000;
+        netAmountOut = amountOut - fee;
+    }
+
+    // Permissionless: anyone can trigger graduation once the reserve condition is met.
+    function graduate() external {
         require(realTokenReserve == 0, "Token reserve must be 0 to graduate");
         require(!graduated, "Already graduated");
         graduated = true;

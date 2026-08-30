@@ -44,6 +44,14 @@ contract SimpleAMM is ReentrancyGuard {
         lpToken.mint(curve, totalLPSupply);
     }
 
+    function getTokenToUSDCAmountOut(uint256 amountIn) external view returns (uint256 amountOut) {
+        amountOut = (amountIn * usdcReserve * (10000 - FEE)) / ((tokenReserve + amountIn) * 10000);
+    }
+
+    function getUSDCToTokenAmountOut(uint256 amountIn) external view returns (uint256 amountOut) {
+        amountOut = (amountIn * tokenReserve * (10000 - FEE)) / ((usdcReserve + amountIn) * 10000);
+    }
+
     function swapTokenForUSDC(uint256 amountIn, uint256 minAmountOut) external nonReentrant {
         require(amountIn > 0, "Amount must be greater than 0");
         uint256 amountOut = (amountIn * usdcReserve * (10000 - FEE)) / ((tokenReserve + amountIn) * 10000);

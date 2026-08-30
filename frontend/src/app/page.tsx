@@ -1,13 +1,75 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { Search } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { Button } from "@/components/ui/Button";
+import { TokenCard } from "@/components/token/TokenCard";
+import { useTokenList } from "@/hooks/useTokenList";
+import { FACTORY_ADDRESS } from "@/lib/contracts";
 
 export default function Home() {
+  const [query, setQuery] = useState("");
+  const { data: tokens, isLoading, isError } = useTokenList();
+
+  const filtered = (tokens ?? []).filter((item) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      item.name.toLowerCase().includes(q) ||
+      item.symbol.toLowerCase().includes(q) ||
+      item.token.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <AppShell>
-      <h1 className="text-2xl font-semibold text-text-primary">Explore</h1>
-      <p className="mt-2 text-sm text-text-secondary">
-        Frontend 셋업 완료 — Token 목록은 Factory `TokenCreated` 이벤트 연동 단계(Phase
-        2)에서 채워집니다.
-      </p>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-text-primary">Explore</h1>
+        <Link href="/create">
+          <Button>Create Token</Button>
+        </Link>
+      </div>
+
+      {!FACTORY_ADDRESS ? (
+        <p className="text-sm text-text-secondary">
+          NEXT_PUBLIC_FACTORY_ADDRESS가 설정되지 않았습니다. 배포 후 .env에
+          채워주세요.
+        </p>
+      ) : (
+        <>
+          <div className="mb-6 flex h-11 max-w-sm items-center gap-2 rounded-md border border-border bg-surface px-3">
+            <Search size={16} className="shrink-0 text-text-muted" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search name, symbol, address"
+              className="h-full w-full bg-transparent text-[14px] text-text-primary outline-none placeholder:text-text-muted"
+            />
+          </div>
+
+          {isLoading && (
+            <p className="text-sm text-text-secondary">불러오는 중...</p>
+          )}
+          {isError && (
+            <p className="text-sm text-negative">
+              토큰 목록을 불러오지 못했습니다.
+            </p>
+          )}
+          {!isLoading && !isError && filtered.length === 0 && (
+            <p className="text-sm text-text-secondary">
+              아직 생성된 토큰이 없습니다.
+            </p>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((item) => (
+              <TokenCard key={item.token} item={item} />
+            ))}
+          </div>
+        </>
+      )}
     </AppShell>
   );
 }

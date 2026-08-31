@@ -328,6 +328,11 @@ Sell MEME
 MEME
 [ 1,000 ]
 
+Available
+12,345 MEME
+
+[ 10% ] [ 25% ] [ 50% ] [ MAX ]
+
 You receive
 ≈ 4.95 USDC
 
@@ -365,6 +370,13 @@ token.approve(
 ```
 
 후 `sell()` 실행.
+
+### 보유량 빠른 입력
+
+연결된 지갑의 MEME balance를 Sell 입력 아래에 표시한다.
+
+`10%`, `25%`, `50%`, `MAX` 버튼은 현재 지갑의 MEME balance를 기준으로
+`amountIn`을 각각 10%, 25%, 50%, 100%로 설정한다.
 
 ---
 

@@ -29,8 +29,6 @@ export type TokenListItem = {
 
 const tokenCreatedEvent = getAbiItem({ abi: factoryAbi, name: "TokenCreated" });
 
-// Reads are batched via multicall (one per token x 8 fields) since there is
-// no subgraph/backend yet — see docs/mini-pump-frontend-spec.md section 2.
 const READS_PER_TOKEN = [
   { abi: memeTokenAbi, functionName: "name" },
   { abi: memeTokenAbi, functionName: "symbol" },
@@ -75,10 +73,9 @@ export function useTokenList() {
         }))
       );
 
-      const results = await publicClient.multicall({
-        contracts,
-        allowFailure: false,
-      });
+      const results = await Promise.all(
+        contracts.map((contract) => publicClient.readContract(contract))
+      );
 
       return created
         .map((item, i) => {

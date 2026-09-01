@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@dicebear/core": "^9.4.3",
+    "@dicebear/identicon": "^9.4.3",
     "@fontsource/pretendard": "^5.3.0",
     "@fontsource/roboto-mono": "^5.3.0",
     "@rainbow-me/rainbowkit": "^2.2.11",

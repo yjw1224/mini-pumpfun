@@ -27,6 +27,8 @@ export type TokenListItem = {
   fdv: bigint;
   progress: number;
   graduated: boolean;
+  /** Seconds since epoch when the token was created. */
+  createdAt: number;
 };
 
 const tokenCreatedEvent = getAbiItem({ abi: factoryAbi, name: "TokenCreated" });
@@ -64,9 +66,22 @@ export function useTokenList() {
         creator: log.args.creator as Address,
         token: log.args.token as Address,
         curve: log.args.bondingCurve as Address,
+        blockNumber: log.blockNumber,
       }));
 
       if (created.length === 0) return [];
+
+      const uniqueBlockNumbers = [
+        ...new Set(created.map(({ blockNumber }) => blockNumber)),
+      ];
+      const blocks = await Promise.all(
+        uniqueBlockNumbers.map((blockNumber) =>
+          publicClient.getBlock({ blockNumber })
+        )
+      );
+      const timestampByBlock = new Map(
+        blocks.map((block) => [block.number, Number(block.timestamp)])
+      );
 
       const contracts = created.flatMap(({ token, curve }) =>
         READS_PER_TOKEN.map((read) => ({
@@ -119,6 +134,7 @@ export function useTokenList() {
             fdv,
             progress,
             graduated: amm.toLowerCase() !== ZERO_ADDRESS,
+            createdAt: timestampByBlock.get(item.blockNumber) ?? 0,
           };
         })
       )).reverse(); // newest first

@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LineChart } from "lucide-react";
+import { Compass, LineChart, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Explore" },
-  { href: "/create", label: "Create" },
+  { href: "/", label: "Explore", icon: Compass },
+  { href: "/create", label: "Create", icon: Plus },
 ];
 
 export function Sidebar() {
@@ -24,6 +24,7 @@ export function Sidebar() {
 
       <nav className="flex flex-col gap-1">
         {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
           const isActive =
             item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
 
@@ -32,13 +33,14 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 isActive
                   ? "bg-primary/10 text-primary"
                   : "text-text-secondary hover:bg-surface-elevated hover:text-text-primary"
               )}
             >
-              {item.label}
+              <Icon size={16} strokeWidth={2} className="shrink-0" />
+              <span>{item.label}</span>
             </Link>
           );
         })}

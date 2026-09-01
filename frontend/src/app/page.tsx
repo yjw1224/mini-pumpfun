@@ -9,8 +9,11 @@ import { TokenCard } from "@/components/token/TokenCard";
 import { useTokenList } from "@/hooks/useTokenList";
 import { FACTORY_ADDRESS } from "@/lib/contracts";
 
+type SortMode = "created" | "mcap";
+
 export default function Home() {
   const [query, setQuery] = useState("");
+  const [sortMode, setSortMode] = useState<SortMode>("created");
   const { data: tokens, isLoading, isError } = useTokenList();
 
   const filtered = (tokens ?? []).filter((item) => {
@@ -21,6 +24,16 @@ export default function Home() {
       item.symbol.toLowerCase().includes(q) ||
       item.token.toLowerCase().includes(q)
     );
+  });
+
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    if (sortMode === "mcap") {
+      if (a.fdv > b.fdv) return -1;
+      if (a.fdv < b.fdv) return 1;
+      return 0;
+    }
+
+    return 0;
   });
 
   return (
@@ -39,7 +52,7 @@ export default function Home() {
         </p>
       ) : (
         <>
-          <div className="mb-6 flex h-11 max-w-sm items-center gap-2 rounded-md border border-border bg-surface px-3">
+          <div className="mb-4 flex h-11 max-w-sm items-center gap-2 rounded-md border border-border bg-surface px-3">
             <Search size={16} className="shrink-0 text-text-muted" />
             <input
               value={query}
@@ -47,6 +60,30 @@ export default function Home() {
               placeholder="Search name, symbol, address"
               className="h-full w-full bg-transparent text-[14px] text-text-primary outline-none placeholder:text-text-muted"
             />
+          </div>
+
+          <div className="mb-6 flex w-fit items-center rounded-md border border-border bg-surface p-1">
+            {[
+              { value: "created", label: "생성순" },
+              { value: "mcap", label: "MCap순" },
+            ].map((option) => {
+              const isActive = sortMode === option.value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setSortMode(option.value as SortMode)}
+                  className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                    isActive
+                      ? "bg-primary text-background"
+                      : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
           </div>
 
           {isLoading && (
@@ -57,14 +94,14 @@ export default function Home() {
               토큰 목록을 불러오지 못했습니다.
             </p>
           )}
-          {!isLoading && !isError && filtered.length === 0 && (
+          {!isLoading && !isError && sortedFiltered.length === 0 && (
             <p className="text-sm text-text-secondary">
               아직 생성된 토큰이 없습니다.
             </p>
           )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-            {filtered.map((item) => (
+            {sortedFiltered.map((item) => (
               <TokenCard key={item.token} item={item} />
             ))}
           </div>

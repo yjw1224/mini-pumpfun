@@ -10,6 +10,7 @@ import {
   factoryAbi,
   memeTokenAbi,
 } from "@/lib/contracts";
+import { toGatewayUrl } from "@/lib/ipfs";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -19,6 +20,7 @@ export type TokenListItem = {
   creator: Address;
   name: string;
   symbol: string;
+  image?: string;
   /** USDC per token, 18-decimals fixed point (matches virtualUSDCReserve/virtualTokenReserve). */
   price: bigint;
   /** price * MAX_TOKEN_SUPPLY, i.e. fully-diluted valuation in USDC. */
@@ -32,6 +34,7 @@ const tokenCreatedEvent = getAbiItem({ abi: factoryAbi, name: "TokenCreated" });
 const READS_PER_TOKEN = [
   { abi: memeTokenAbi, functionName: "name" },
   { abi: memeTokenAbi, functionName: "symbol" },
+  { abi: memeTokenAbi, functionName: "tokenURI" },
   { abi: bondingCurveAbi, functionName: "virtualTokenReserve" },
   { abi: bondingCurveAbi, functionName: "virtualUSDCReserve" },
   { abi: bondingCurveAbi, functionName: "realTokenReserve" },
@@ -77,17 +80,24 @@ export function useTokenList() {
         contracts.map((contract) => publicClient.readContract(contract))
       );
 
-      return created
-        .map((item, i) => {
+      return (await Promise.all(
+        created.map(async (item, i) => {
           const base = i * READS_PER_TOKEN.length;
           const name = results[base] as string;
           const symbol = results[base + 1] as string;
-          const virtualTokenReserve = results[base + 2] as bigint;
-          const virtualUSDCReserve = results[base + 3] as bigint;
-          const realTokenReserve = results[base + 4] as bigint;
-          const initialTokenReserve = results[base + 5] as bigint;
-          const maxTokenSupply = results[base + 6] as bigint;
-          const amm = results[base + 7] as Address;
+          const tokenUri = results[base + 2] as string;
+          const virtualTokenReserve = results[base + 3] as bigint;
+          const virtualUSDCReserve = results[base + 4] as bigint;
+          const realTokenReserve = results[base + 5] as bigint;
+          const initialTokenReserve = results[base + 6] as bigint;
+          const maxTokenSupply = results[base + 7] as bigint;
+          const amm = results[base + 8] as Address;
+          const image = await fetch(toGatewayUrl(tokenUri))
+            .then((response) => (response.ok ? response.json() : null))
+            .then((metadata: { image?: string } | null) =>
+              metadata?.image ? toGatewayUrl(metadata.image) : undefined
+            )
+            .catch(() => undefined);
 
           const price =
             virtualTokenReserve > 0n
@@ -104,13 +114,14 @@ export function useTokenList() {
             ...item,
             name,
             symbol,
+            image,
             price,
             fdv,
             progress,
             graduated: amm.toLowerCase() !== ZERO_ADDRESS,
           };
         })
-        .reverse(); // newest first
+      )).reverse(); // newest first
     },
   });
 }

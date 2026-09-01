@@ -565,34 +565,24 @@ Do not use oversized navigation icons.
 
 ## 11.2 Header
 
-The main header should remain compact.
-
-Possible structure:
+Explore의 Token Card는 token image를 빠르게 식별할 수 있는 compact 탐색 항목으로 유지한다.
 
 ```text
-Search                         Wallet
+Token image (card width, square)
+────────────────────────────
+Token name
+Token ticker
+Market Cap
 ```
 
-The header should prioritize utility rather than branding.
+- Image: 카드 상단에 카드 내부 너비를 사용한 정사각형 이미지로 배치하고 object-fit cover를 적용한다.
+- Information: 이미지 아래 surface-elevated 정보 영역에 name, ticker, market cap 순서로 표시한다.
+- Hierarchy: name과 market cap은 medium emphasis, ticker는 더 작은 secondary text로 표시한다.
+- Metadata image가 없거나 로드에 실패하면 임의 이미지 대신 동일 비율의 빈 placeholder를 표시한다.
+- 가격, progress, token address, creator, graduated badge는 Explore Token Card에서 표시하지 않는다.
+- Explore의 기본 desktop grid는 한 줄 최대 6개 카드로 구성한다. 마지막 줄의 카드 수가 6개 미만이어도 동일한 6개 grid track을 유지해 카드 크기가 커지지 않도록 한다.
 
----
-
-# 12. Iconography
-
-Use one coherent icon library rather than mixing unrelated icon sets.
-
-Recommended direction:
-
-- Lucide-style outline icons
-- Consistent stroke width
-- 18–20px standard size
-- 16px compact size
-- 24px prominent size
-
-Use icons to improve recognition, not to decorate every label.
-
-### Prohibited
-
+Cards should not contain unnecessary badges, statistics, or decorative elements.
 - Emoji as UI icons
 - Mixing filled and outlined icon styles without a semantic reason
 - Random SVG icons from unrelated visual systems
@@ -821,27 +811,74 @@ Cards should not contain unnecessary badges, statistics, or decorative elements.
 
 ---
 
-# 18. Token Detail Page
+# 18. Token Dashboard
 
-The token page should prioritize trading.
+`/token/[address]` 화면은 앞으로 **Token Dashboard** 또는 **토큰 대시보드**로 부른다. Token Dashboard는 거래를 우선하되 token metadata와 시장 상태를 한 화면에서 빠르게 확인할 수 있어야 한다.
 
 Recommended desktop layout:
 
 ```text
-┌───────────────┬─────────────────────────────────────────┐
-│               │                                         │
-│ Token Info    │                 Trading                 │
-│               │                                         │
-│ Price         │        BUY          SELL                │
-│ Market Cap    │                                         │
-│ Progress      │        Amount Input                     │
-│ Creator       │        Expected Output                  │
-│ Contract      │        Minimum Received                 │
-│               │        Fee                              │
-│               │        [ Execute ]                      │
-│               │                                         │
-└───────────────┴─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│ Token header: image, name, symbol, address, creator, wallet balance │
+├───────────────────────────────────────┬─────────────────────────────┤
+│ Price / market metrics                │                             │
+├───────────────────────────────────────┤          Trading            │
+│ Chart                                 │        BUY / SELL            │
+│ [ Recharts icon ] [ TradingView icon ]│        You pay               │
+│ Chart data or empty placeholder       │        You receive           │
+├───────────────────────────────────────┤        Minimum received      │
+│ Bonding curve progress                │        Fee / Execute         │
+├───────────────────────────────────────┴─────────────────────────────┤
+│ About: token description only                                      │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+### Token Metadata
+
+Token Dashboard는 `tokenURI`의 JSON metadata에서 다음 값을 표시한다.
+
+- `image`: token header의 token image
+- `name`: on-chain name과 동일한 token name
+- `symbol`: on-chain symbol과 동일한 token symbol
+- `description`: 하단 About 섹션의 본문
+
+IPFS metadata 또는 image를 불러오는 동안, 또는 데이터가 없을 때에는 임의 데이터를 채우지 않고 빈 placeholder를 유지한다.
+
+### Token Image Modal
+
+Token Dashboard header의 token image는 클릭 가능한 icon button이다. 클릭 시 원본 image를 확인하는 modal을 표시한다.
+
+- Backdrop: viewport 전체를 덮는 translucent dark overlay
+- Image: viewport의 최대 약 80% 너비와 높이 안에 맞추며 aspect ratio를 유지한다.
+- Close: 우측 상단의 white `X` icon button과 backdrop 클릭으로 닫는다.
+- Modal이 열려 있는 동안 token image 이외의 배경 요소와 상호작용하지 않는다.
+- Metadata image가 없거나 로드 실패 시 placeholder는 클릭 동작을 제공하지 않는다.
+
+### Chart Mode Toggle
+
+차트 영역 상단에는 아이콘만 사용하는 두 개의 compact toggle button을 둔다.
+
+- Recharts mode: Recharts 아이콘과 tooltip `Recharts chart`
+- TradingView mode: TradingView 아이콘과 tooltip `TradingView chart`
+- active mode는 primary accent로 식별한다.
+- 아직 chart data나 renderer가 없으면 선택된 mode의 빈 chart placeholder만 표시한다.
+
+### Trading Hierarchy
+
+Buy와 Sell 모두 사용자가 지불하는 자산과 받는 자산을 같은 계층으로 읽을 수 있어야 한다.
+
+```text
+You pay
+[ amount input ] asset
+
+You receive
+≈ quoted amount asset
+
+Minimum received
+quoted amount asset
+```
+
+Pool info, Holders, Trades 섹션은 Token Dashboard에 표시하지 않는다. 하단에는 설명만 포함한 About 섹션을 유지한다.
 
 The layout should be functional rather than centered like a marketing landing page.
 

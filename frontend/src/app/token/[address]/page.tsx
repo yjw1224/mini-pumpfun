@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/layout/AppShell";
-import { TokenDetail } from "@/components/token/TokenDetail";
+import { TokenDashboard } from "@/components/token/TokenDashboard";
 import { TokenCreatedToast } from "@/components/ui/TokenCreatedToast";
 
 export default async function TokenDetailPage({
@@ -14,7 +14,7 @@ export default async function TokenDetailPage({
 
   return (
     <AppShell>
-      <TokenDetail tokenAddress={address} />
+      <TokenDashboard tokenAddress={address} />
       {created === "1" && <TokenCreatedToast />}
     </AppShell>
   );

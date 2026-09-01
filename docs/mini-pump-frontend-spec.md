@@ -70,13 +70,10 @@ Recent / Trending Tokens
 
 - Name
 - Symbol
-- Token address
-- Creator
-- 현재 가격
+- tokenURI metadata image
 - Market Cap 또는 FDV
-- Bonding Curve 진행률
-- Graduation 여부
-- Trade 버튼
+
+카드는 상단의 정사각형 token image와 하단 정보 영역으로 구성한다. 하단 정보는 `Name → Symbol → Market Cap` 순서로 표시하며, metadata image가 없으면 빈 placeholder를 유지한다.
 
 ### 데이터
 
@@ -183,9 +180,9 @@ Factory.createToken(
 
 ---
 
-# 5. `/token/[address]` — Token Detail
+# 5. `/token/[address]` — Token Dashboard
 
-프론트엔드의 핵심 페이지.
+프론트엔드의 핵심 페이지이며, 앞으로 **Token Dashboard** 또는 **토큰 대시보드**로 부른다.
 
 Token 상태에 따라:
 
@@ -197,7 +194,7 @@ Graduated / AMM Mode
 
 로 UI를 전환한다.
 
-## 공통 Token Header
+## Token Dashboard Header
 
 ```text
 MEME
@@ -219,6 +216,13 @@ Creator
 - Token address
 - Creator
 - Wallet token balance
+- tokenURI metadata image
+
+`tokenURI` JSON의 `description`은 대시보드 하단 About 섹션에 표시한다. Holders, Trades, Pool info는 표시하지 않는다.
+
+header의 metadata image를 클릭하면 화면의 약 80% 이내에서 원본 비율을 유지해 확대 표시한다. dark backdrop 또는 우측 상단 X button으로 modal을 닫는다.
+
+차트 영역은 Recharts와 TradingView icon toggle을 제공하며, 아직 데이터가 없을 때는 빈 placeholder를 표시한다.
 
 ---
 

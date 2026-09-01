@@ -758,6 +758,47 @@ Charts should resemble financial-product interfaces.
 - No 3D effects
 - No excessive animation
 
+## 15.1 Price Line Chart (Trade History)
+
+Token Dashboard의 Price chart는 서버/DB/Indexer 없이 온체인 Buy/Sell 이벤트만으로 구성한다.
+
+```text
+Blockchain Events → getLogs() → Trade[] → ChartPoint[] → Recharts
+```
+
+Data flow:
+
+- BondingCurve의 `TokensPurchased`/`TokensSold` 이벤트를 `curveAddress` 기준으로 `getLogs()`한다.
+- 각 log의 `blockNumber`로 block을 조회해 `block.timestamp`를 사용한다. Event 자체에는 timestamp를 추가하지 않는다.
+- 거래 정렬은 `blockNumber → transactionIndex → logIndex` 순으로 한다.
+- `Trade.price`(이벤트에 기록된 실제 체결 가격)를 그대로 `ChartPoint.price`로 사용한다. Price는 BondingCurve의 기존 decimals(18-decimals fixed point, USDC per token)를 그대로 유지한다.
+
+Rendering:
+
+```text
+┌──────────────────────────────────────────┐
+│ Price chart              [Recharts][TV]  │
+├──────────────────────────────────────────┤
+│                                     ╱╲    │
+│                         ╱╲___╱╲___╱  ╲   │
+│                    ╱╲__╱             ╲_  │
+│  09:00   10:00   11:00   12:00   13:00   │
+└──────────────────────────────────────────┘
+```
+
+- Chart header: `Price chart` 제목 오른쪽에 `1H`, `24H`, `ALL` 세그먼트 컨트롤을 표시한다. 활성 범위는 primary 배경과 background 텍스트로 구분한다. `ALL`은 데이터 가공 규칙이 확정될 때까지 비활성 상태로 표시한다.
+- 1H: 현재 시각부터 지난 1시간을 1분 단위의 균일한 61개 time bucket으로 변환한다.
+- 24H: 현재 시각부터 지난 24시간을 30분 단위의 균일한 49개 time bucket으로 변환한다.
+- 각 bucket은 해당 구간에서 가장 마지막에 체결된 거래 가격을 사용한다. 거래가 없는 bucket은 직전 가격을 이어서 사용해 시간축 간격을 일정하게 유지한다. 범위 시작 전 마지막 거래가 있으면 첫 bucket의 시작 가격으로 사용한다.
+- 범위 안에 거래가 하나도 없으면 빈 차트 대신 empty state를 표시한다.
+- Recharts `ResponsiveContainer` + `LineChart`로 구현하며 카드 폭에 맞춰 반응형으로 렌더링한다.
+- Line은 accent color 1개만 사용하고(`type="linear"`, `dot={false}`), 별도 grid line은 최소화한다.
+- X축은 timestamp를 `HH:mm` 형태로 축약 표시한다.
+- Y축은 가격을 `formatUsd`와 동일한 규칙으로 축약 표시한다.
+- Tooltip은 hover 시점의 가격과 시각을 함께 표시한다.
+- 거래 내역이 없으면 라인 대신 "아직 거래 내역이 없습니다" 형태의 empty state 문구를 표시한다.
+- OHLC/Candle, TradingView 위젯, 이동평균 등은 이번 단계에서 구현하지 않는다.
+
 Charts must communicate data, not make the page look impressive.
 
 ## Financial Data

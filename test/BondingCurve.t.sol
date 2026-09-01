@@ -76,6 +76,31 @@ contract BondingCurveTest is Test {
         curve.graduate();
     }
 
+    function test_TradeEventsEmitPrice() public {
+        uint256 buyAmount = 100 * 1e18;
+        uint256 minimumTokensOut = curve.getBuyAmountOut(buyAmount);
+
+        vm.prank(alice);
+        fakeUSDC.faucet(buyAmount);
+        vm.prank(alice);
+        fakeUSDC.approve(address(curve), buyAmount);
+
+        vm.expectEmit(true, false, false, false, address(curve));
+        emit BondingCurve.TokensPurchased(alice, buyAmount, minimumTokensOut, curve.currentPrice());
+        vm.prank(alice);
+        uint256 tokensBought = curve.buy(buyAmount, minimumTokensOut);
+
+        uint256 priceAfterBuy = curve.currentPrice();
+        uint256 minimumUSDCOut = curve.getSellAmountOut(tokensBought);
+        vm.prank(alice);
+        memeToken.approve(address(curve), tokensBought);
+
+        vm.expectEmit(true, false, false, false, address(curve));
+        emit BondingCurve.TokensSold(alice, tokensBought, minimumUSDCOut, priceAfterBuy);
+        vm.prank(alice);
+        curve.sell(tokensBought, minimumUSDCOut);
+    }
+
     function test_BuyAutomaticallyGraduatesAtMCapThreshold() public {
         vm.prank(alice);
         fakeUSDC.faucet(GRADUATION_BUY_AMOUNT);

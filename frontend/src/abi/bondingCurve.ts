@@ -381,7 +381,7 @@ export const bondingCurveAbi = [
   },
   {
     "type": "event",
-    "name": "Buy",
+    "name": "TokensPurchased",
     "inputs": [
       {
         "name": "buyer",
@@ -390,13 +390,19 @@ export const bondingCurveAbi = [
         "internalType": "address"
       },
       {
-        "name": "amountIn",
+        "name": "usdcIn",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
       },
       {
-        "name": "amountOut",
+        "name": "tokensOut",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "price",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -438,7 +444,7 @@ export const bondingCurveAbi = [
   },
   {
     "type": "event",
-    "name": "Sell",
+    "name": "TokensSold",
     "inputs": [
       {
         "name": "seller",
@@ -447,13 +453,19 @@ export const bondingCurveAbi = [
         "internalType": "address"
       },
       {
-        "name": "amountIn",
+        "name": "tokensIn",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
       },
       {
-        "name": "amountOut",
+        "name": "usdcOut",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "price",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"

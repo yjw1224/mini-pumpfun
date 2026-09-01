@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowRightLeft, CandlestickChart, Copy, LineChart, X } from "lucide-react";
+import {
+  Line,
+  LineChart as RechartsLineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { formatUnits, isAddress, parseUnits, zeroAddress } from "viem";
 import {
   useAccount,
@@ -23,6 +31,7 @@ import {
 } from "@/lib/contracts";
 import { formatMarketCap, formatPercent, formatTokenAmount, formatUsd, truncateAddress } from "@/lib/format";
 import { toGatewayUrl } from "@/lib/ipfs";
+import { buildChartData, type ChartRange, useTradeHistory } from "@/hooks/useTradeHistory";
 
 const ANVIL_CHAIN_ID = 31337;
 const BPS_DENOMINATOR = 10_000n;
@@ -31,6 +40,7 @@ const SELL_PERCENTAGES = [10, 25, 50] as const;
 
 type TradeSide = "buy" | "sell";
 type ChartMode = "recharts" | "tradingview";
+type ChartTimeframe = ChartRange | "all";
 
 type TokenMetadata = {
   image?: string;
@@ -46,12 +56,17 @@ function parseAmount(value: string) {
   }
 }
 
+function formatChartTime(timestampSeconds: number, options: Intl.DateTimeFormatOptions) {
+  return new Date(timestampSeconds * 1000).toLocaleTimeString([], options);
+}
+
 export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   const validTokenAddress = isAddress(tokenAddress);
   const token = validTokenAddress ? tokenAddress : undefined;
   const { address: account, isConnected, chainId } = useAccount();
   const [side, setSide] = useState<TradeSide>("buy");
   const [chartMode, setChartMode] = useState<ChartMode>("recharts");
+  const [chartTimeframe, setChartTimeframe] = useState<ChartTimeframe>("1h");
   const [amount, setAmount] = useState("");
   const [slippage, setSlippage] = useState(DEFAULT_SLIPPAGE);
   const [metadata, setMetadata] = useState<TokenMetadata | null>(null);
@@ -84,6 +99,12 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   const { data: usdcBalance, refetch: refetchUsdcBalance } = useReadContract({ address: FAKE_USDC_ADDRESS, abi: fakeUSDCAbi, functionName: "balanceOf", args: accountArgs, query: { enabled: Boolean(account) && isAddress(FAKE_USDC_ADDRESS) } });
   const { data: usdcAllowance, refetch: refetchUsdcAllowance } = useReadContract({ address: FAKE_USDC_ADDRESS, abi: fakeUSDCAbi, functionName: "allowance", args: account && curveAddress ? [account, curveAddress] : undefined, query: { enabled: Boolean(account && curveAddress) && isAddress(FAKE_USDC_ADDRESS) } });
   const { data: tokenAllowance, refetch: refetchTokenAllowance } = useReadContract({ address: token, abi: memeTokenAbi, functionName: "allowance", args: account && curveAddress ? [account, curveAddress] : undefined, query: { enabled: Boolean(token && account && curveAddress) } });
+  const { trades, isLoading: isChartLoading, refetch: refetchTradeHistory } = useTradeHistory(curveAddress);
+  const chartData = useMemo(
+    () => chartTimeframe === "all" ? [] : buildChartData(trades, chartTimeframe),
+    [chartTimeframe, trades]
+  );
+  const hasTradesInRange = chartData.some((point) => point.price !== null);
 
   const amountIn = parseAmount(amount);
   const slippageBps = Math.max(0, Math.round(Number(slippage) * 100));
@@ -141,7 +162,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   }, [tokenUri]);
 
   const refetchDetails = () => {
-    void Promise.all([refetchName(), refetchSymbol(), refetchTokenBalance(), refetchCreator(), refetchVirtualTokenReserve(), refetchVirtualUSDCReserve(), refetchRealTokenReserve(), refetchInitialTokenReserve(), refetchTotalSupply(), refetchUsdcBalance(), refetchUsdcAllowance(), refetchTokenAllowance()]);
+    void Promise.all([refetchName(), refetchSymbol(), refetchTokenBalance(), refetchCreator(), refetchVirtualTokenReserve(), refetchVirtualUSDCReserve(), refetchRealTokenReserve(), refetchInitialTokenReserve(), refetchTotalSupply(), refetchUsdcBalance(), refetchUsdcAllowance(), refetchTokenAllowance(), refetchTradeHistory()]);
   };
 
   useEffect(() => {
@@ -209,7 +230,77 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
           <div className="space-y-6">
             <Card><div className="grid gap-5"><div><div className="flex items-center gap-2"><button type="button" onClick={() => setShowPrice(!showPrice)} className="text-text-secondary hover:text-text-primary transition-colors" title="Toggle between Price and Market Cap"><ArrowRightLeft size={14} /></button><p className="text-[13px] font-medium text-text-secondary">{showPrice ? "Price" : "Market Cap"}</p></div><p className="mt-1 font-financial text-3xl font-semibold text-text-primary">{showPrice ? formatUsd(price) : formatMarketCap((price * (totalSupply ?? 0n)) / 10n ** 18n)}</p></div></div></Card>
-            <Card><div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold text-text-primary">Price chart</h2><div className="flex gap-1"><button type="button" title="Recharts chart" onClick={() => setChartMode("recharts")} className={`flex size-8 items-center justify-center rounded-md ${chartMode === "recharts" ? "bg-surface-elevated text-primary" : "text-text-secondary hover:text-text-primary"}`}><LineChart className="size-4" /></button><button type="button" title="TradingView chart" onClick={() => setChartMode("tradingview")} className={`flex size-8 items-center justify-center rounded-md ${chartMode === "tradingview" ? "bg-surface-elevated text-primary" : "text-text-secondary hover:text-text-primary"}`}><CandlestickChart className="size-4" /></button></div></div><div className="mt-4 flex h-64 items-center justify-center border-y border-border text-[13px] text-text-muted">{chartMode === "recharts" ? "" : ""}</div></Card>
+            <Card>
+              <div className="flex items-center justify-between">
+                <h2 className="text-[15px] font-semibold text-text-primary">Price chart</h2>
+                <div className="flex items-center gap-3">
+                  <div className="flex rounded-md border border-border bg-surface p-0.5">
+                    {[
+                      { value: "1h", label: "1H" },
+                      { value: "24h", label: "24H" },
+                      { value: "all", label: "ALL" },
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        disabled={option.value === "all"}
+                        onClick={() => setChartTimeframe(option.value as ChartTimeframe)}
+                        className={`rounded px-2 py-1 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                          chartTimeframe === option.value
+                            ? "bg-primary text-background"
+                            : "text-text-secondary hover:text-text-primary"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-1">
+                  <button type="button" title="Recharts chart" onClick={() => setChartMode("recharts")} className={`flex size-8 items-center justify-center rounded-md ${chartMode === "recharts" ? "bg-surface-elevated text-primary" : "text-text-secondary hover:text-text-primary"}`}><LineChart className="size-4" /></button>
+                  <button type="button" title="TradingView chart" onClick={() => setChartMode("tradingview")} className={`flex size-8 items-center justify-center rounded-md ${chartMode === "tradingview" ? "bg-surface-elevated text-primary" : "text-text-secondary hover:text-text-primary"}`}><CandlestickChart className="size-4" /></button>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 h-64 border-y border-border">
+                {chartMode !== "recharts" ? (
+                  <div className="flex h-full items-center justify-center text-[13px] text-text-muted"></div>
+                ) : isChartLoading ? (
+                  <div className="flex h-full items-center justify-center text-[13px] text-text-muted">불러오는 중...</div>
+                ) : !hasTradesInRange ? (
+                  <div className="flex h-full items-center justify-center text-[13px] text-text-muted">아직 거래 내역이 없습니다.</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsLineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                      <XAxis
+                        dataKey="timestamp"
+                        tickFormatter={(value: number) => formatChartTime(value, { hour: "2-digit", minute: "2-digit" })}
+                        stroke="var(--color-text-muted)"
+                        fontSize={11}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        dataKey="price"
+                        domain={["auto", "auto"]}
+                        tickFormatter={(value: number) => `$${value.toLocaleString("en-US", { maximumFractionDigits: 6 })}`}
+                        stroke="var(--color-text-muted)"
+                        fontSize={11}
+                        tickLine={false}
+                        axisLine={false}
+                        width={70}
+                      />
+                      <Tooltip
+                        labelFormatter={(label) => formatChartTime(Number(label), { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                        formatter={(value) => [`$${Number(value).toLocaleString("en-US", { maximumFractionDigits: 6 })}`, "Price"]}
+                        contentStyle={{ background: "var(--color-surface-elevated)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
+                        labelStyle={{ color: "var(--color-text-secondary)" }}
+                      />
+                      <Line type="linear" dataKey="price" stroke="var(--color-primary)" strokeWidth={2} dot={false} isAnimationActive={false} />
+                    </RechartsLineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </Card>
             <Card><div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold text-text-primary">Bonding Curve Progress</h2><span className="font-financial text-sm text-primary">{formatPercent(progress)}</span></div><Progress ratio={progress} className="mt-4" /><div className="mt-3 flex justify-between text-[13px] text-text-secondary"><span>{formatTokenAmount((initialTokenReserve ?? 0n) - (realTokenReserve ?? 0n), 0)} / {formatTokenAmount(initialTokenReserve ?? 0n, 0)} tokens sold</span><span>Graduation at 100%</span></div></Card>
           </div>
           <Card className="h-fit"><div className="grid grid-cols-2 border-b border-border"><button type="button" onClick={() => { setSide("buy"); setAmount(""); }} className={`pb-3 text-sm font-semibold ${side === "buy" ? "border-b-2 border-primary text-primary" : "text-text-secondary"}`}>Buy {symbol}</button><button type="button" onClick={() => { setSide("sell"); setAmount(""); }} className={`pb-3 text-sm font-semibold ${side === "sell" ? "border-b-2 border-negative text-negative" : "text-text-secondary"}`}>Sell {symbol}</button></div><div className="mt-5 space-y-4"><Input id="trade-amount" label="You pay" suffix={inputAsset} inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={isLoading} />{isConnected && <p className="-mt-2 text-[12px] text-text-secondary">Balance: {side === "buy" ? `${formatTokenAmount(usdcBalance ?? 0n)} Test USDC` : `${formatTokenAmount(tokenBalance ?? 0n)} ${symbol}`}</p>}{side === "sell" && isConnected && <div className="flex justify-end gap-1">{SELL_PERCENTAGES.map((percentage) => <button key={percentage} type="button" onClick={() => setSellPercentage(percentage)} disabled={isLoading || !tokenBalance} className="h-7 rounded-sm border border-border-strong px-2 font-financial text-text-secondary hover:border-text-secondary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50">{percentage}%</button>)}<button type="button" onClick={() => setSellPercentage(100)} disabled={isLoading || !tokenBalance} className="h-7 rounded-sm border border-border-strong px-2 font-financial text-text-secondary hover:border-text-secondary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50">MAX</button></div>}<div className="flex justify-center"><ArrowDown className="size-5 text-text-muted" /></div><div className="rounded-md border border-border bg-surface-elevated p-3 text-[13px]"><p className="text-text-secondary">You receive</p><p className="mt-1 font-financial text-xl text-text-primary">{quote ? `≈ ${formatTokenAmount(quote)} ${outputAsset}` : ""}</p></div><div className="rounded-md bg-surface-elevated p-3 text-[13px]"><div className="flex justify-between"><span className="text-text-secondary">Minimum received</span><span className="font-financial text-text-primary">{quote ? `${formatTokenAmount(minAmountOut)} ${outputAsset}` : ""}</span></div></div><Input id="slippage" label="Slippage tolerance" suffix="%" inputMode="decimal" placeholder="1.00" value={slippage} onChange={(event) => setSlippage(event.target.value)} disabled={isLoading} /><div className="grid grid-cols-2 gap-y-2 text-[13px]"><span className="text-text-secondary">Fee</span><span className="text-right font-financial text-text-primary">{formatTokenAmount(fee)} {inputAsset}</span><span className="text-text-secondary">Protocol</span><span className="text-right font-financial text-text-primary">{formatTokenAmount(protocolFee)} {inputAsset}</span><span className="text-text-secondary">Creator</span><span className="text-right font-financial text-text-primary">{formatTokenAmount(creatorFee)} {inputAsset}</span></div>{txError && <p className="text-[13px] text-negative">{txError.message.split("\n")[0]}</p>}{!validSlippage && <p className="text-[13px] text-negative">Slippage는 0%에서 100% 사이여야 합니다.</p>}<Button variant={side === "buy" ? "primary" : "destructive"} className="w-full" onClick={handleTrade} loading={isLoading} disabled={!isConnected || chainId !== ANVIL_CHAIN_ID || !quote || !validSlippage}>{actionLabel}</Button>{!isConnected && <p className="text-center text-[13px] text-text-secondary">거래하려면 지갑을 연결해주세요.</p>}{isConnected && chainId !== ANVIL_CHAIN_ID && <p className="text-center text-[13px] text-warning">Anvil 네트워크로 전환해주세요.</p>}</div></Card>

@@ -57,6 +57,32 @@ function parseAmount(value: string) {
   }
 }
 
+function getSellAmountOut(tokenAmount: bigint, tokenReserve: bigint, usdcReserve: bigint) {
+  const grossAmountOut = (usdcReserve * tokenAmount) / (tokenReserve + tokenAmount);
+  return grossAmountOut - grossAmountOut / 100n;
+}
+
+function getTokenAmountForSellOutput(
+  desiredUsdcAmount: bigint,
+  maxTokenAmount: bigint,
+  tokenReserve: bigint,
+  usdcReserve: bigint
+) {
+  if (desiredUsdcAmount === 0n || maxTokenAmount === 0n) return 0n;
+  if (getSellAmountOut(maxTokenAmount, tokenReserve, usdcReserve) < desiredUsdcAmount) return 0n;
+
+  let low = 1n;
+  let high = maxTokenAmount;
+
+  while (low < high) {
+    const mid = (low + high) / 2n;
+    if (getSellAmountOut(mid, tokenReserve, usdcReserve) >= desiredUsdcAmount) high = mid;
+    else low = mid + 1n;
+  }
+
+  return low;
+}
+
 function formatChartTime(timestampSeconds: number, options: Intl.DateTimeFormatOptions) {
   return new Date(timestampSeconds * 1000).toLocaleTimeString([], options);
 }
@@ -112,20 +138,32 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   const ohlcData = useMemo(() => buildOhlcData(trades), [trades]);
   const hasTradesInRange = chartData.some((point) => point.price !== null);
 
-  const amountIn = parseAmount(amount);
+  const requestedAmount = parseAmount(amount);
+  const sellTokenAmount = virtualTokenReserve && virtualUSDCReserve
+    ? getTokenAmountForSellOutput(requestedAmount, tokenBalance ?? 0n, virtualTokenReserve, virtualUSDCReserve)
+    : 0n;
+  const amountIn = side === "buy" ? requestedAmount : sellTokenAmount;
   const slippageBps = Math.max(0, Math.round(Number(slippage) * 100));
   const validSlippage = Number.isFinite(slippageBps) && slippageBps <= 10_000;
-  const { data: quote } = useReadContract({
+  const { data: buyQuote } = useReadContract({
     address: curveAddress,
     abi: bondingCurveAbi,
-    functionName: side === "buy" ? "getBuyAmountOut" : "getSellAmountOut",
-    args: amountIn > 0n ? [amountIn] : undefined,
-    query: { enabled: readEnabled && amountIn > 0n },
+    functionName: "getBuyAmountOut",
+    args: side === "buy" && amountIn > 0n ? [amountIn] : undefined,
+    query: { enabled: readEnabled && side === "buy" && amountIn > 0n },
   });
+  const quote = side === "buy"
+    ? buyQuote
+    : virtualTokenReserve && virtualUSDCReserve && amountIn > 0n
+      ? getSellAmountOut(amountIn, virtualTokenReserve, virtualUSDCReserve)
+      : undefined;
   const minAmountOut = quote && validSlippage
     ? (quote * BigInt(BPS_DENOMINATOR - BigInt(slippageBps))) / BPS_DENOMINATOR
     : 0n;
-  const fee = amountIn / 100n;
+  const sellGrossAmountOut = side === "sell" && virtualTokenReserve && virtualUSDCReserve && amountIn > 0n
+    ? (virtualUSDCReserve * amountIn) / (virtualTokenReserve + amountIn)
+    : 0n;
+  const fee = side === "buy" ? amountIn / 100n : sellGrossAmountOut - (quote ?? 0n);
   const protocolFee = (fee * 70n) / 100n;
   const creatorFee = fee - protocolFee;
   const allowance = side === "buy" ? usdcAllowance : tokenAllowance;
@@ -201,7 +239,11 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
 
   function setSellPercentage(percentage: number) {
     const balance = tokenBalance ?? 0n;
-    setAmount(formatUnits((balance * BigInt(percentage)) / 100n, 18));
+    const tokenAmount = (balance * BigInt(percentage)) / 100n;
+    const usdcAmount = virtualTokenReserve && virtualUSDCReserve
+      ? getSellAmountOut(tokenAmount, virtualTokenReserve, virtualUSDCReserve)
+      : 0n;
+    setAmount(formatUnits(usdcAmount, 18));
   }
 
   function copyAddress() {
@@ -219,8 +261,8 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   const actionLabel = isApprovalPending ? "지갑에서 승인" : isApprovalConfirming ? "승인 확인 중" : isTradePending ? "지갑에서 확인" : isTradeConfirming ? "거래 확인 중" : requiresApproval ? "Approve" : side === "buy" ? `Buy ${symbol ?? "Token"}` : `Sell ${symbol ?? "Token"}`;
   const txError = approvalError ?? approvalReceiptError ?? tradeError ?? tradeReceiptError;
 
-  const inputAsset = side === "buy" ? "USDC" : symbol ?? "Token";
-  const outputAsset = side === "buy" ? symbol ?? "Token" : "USDC";
+  const inputAsset = "fUSDC";
+  const outputAsset = symbol ?? "Token";
   const imageUrl = metadata?.image ? toGatewayUrl(metadata.image) : undefined;
 
   return (
@@ -313,7 +355,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
             </Card>
             <Card><div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold text-text-primary">Bonding Curve Progress</h2><span className="font-financial text-sm text-primary">{formatPercent(progress)}</span></div><Progress ratio={progress} className="mt-4" /><div className="mt-3 flex justify-between text-[13px] text-text-secondary"><span>{formatTokenAmount((initialTokenReserve ?? 0n) - (realTokenReserve ?? 0n), 0)} / {formatTokenAmount(initialTokenReserve ?? 0n, 0)} tokens sold</span><span>Graduation at 100%</span></div></Card>
           </div>
-          <Card className="h-fit"><div className="grid grid-cols-2 border-b border-border"><button type="button" onClick={() => { setSide("buy"); setAmount(""); }} className={`pb-3 text-sm font-semibold ${side === "buy" ? "border-b-2 border-primary text-primary" : "text-text-secondary"}`}>Buy {symbol}</button><button type="button" onClick={() => { setSide("sell"); setAmount(""); }} className={`pb-3 text-sm font-semibold ${side === "sell" ? "border-b-2 border-negative text-negative" : "text-text-secondary"}`}>Sell {symbol}</button></div><div className="mt-5 space-y-4"><Input id="trade-amount" label="You pay" suffix={inputAsset} inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={isLoading} />{isConnected && <p className="-mt-2 text-[12px] text-text-secondary">Balance: {side === "buy" ? `${formatTokenAmount(usdcBalance ?? 0n)} Test USDC` : `${formatTokenAmount(tokenBalance ?? 0n)} ${symbol}`}</p>}{side === "sell" && isConnected && <div className="flex justify-end gap-1">{SELL_PERCENTAGES.map((percentage) => <button key={percentage} type="button" onClick={() => setSellPercentage(percentage)} disabled={isLoading || !tokenBalance} className="h-7 rounded-sm border border-border-strong px-2 font-financial text-text-secondary hover:border-text-secondary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50">{percentage}%</button>)}<button type="button" onClick={() => setSellPercentage(100)} disabled={isLoading || !tokenBalance} className="h-7 rounded-sm border border-border-strong px-2 font-financial text-text-secondary hover:border-text-secondary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50">MAX</button></div>}<div className="flex justify-center"><ArrowDown className="size-5 text-text-muted" /></div><div className="rounded-md border border-border bg-surface-elevated p-3 text-[13px]"><p className="text-text-secondary">You receive</p><p className="mt-1 font-financial text-xl text-text-primary">{quote ? `≈ ${formatTokenAmount(quote)} ${outputAsset}` : ""}</p></div><div className="rounded-md bg-surface-elevated p-3 text-[13px]"><div className="flex justify-between"><span className="text-text-secondary">Minimum received</span><span className="font-financial text-text-primary">{quote ? `${formatTokenAmount(minAmountOut)} ${outputAsset}` : ""}</span></div></div><Input id="slippage" label="Slippage tolerance" suffix="%" inputMode="decimal" placeholder="1.00" value={slippage} onChange={(event) => setSlippage(event.target.value)} disabled={isLoading} /><div className="grid grid-cols-2 gap-y-2 text-[13px]"><span className="text-text-secondary">Fee</span><span className="text-right font-financial text-text-primary">{formatTokenAmount(fee)} {inputAsset}</span><span className="text-text-secondary">Protocol</span><span className="text-right font-financial text-text-primary">{formatTokenAmount(protocolFee)} {inputAsset}</span><span className="text-text-secondary">Creator</span><span className="text-right font-financial text-text-primary">{formatTokenAmount(creatorFee)} {inputAsset}</span></div>{txError && <p className="text-[13px] text-negative">{txError.message.split("\n")[0]}</p>}{!validSlippage && <p className="text-[13px] text-negative">Slippage는 0%에서 100% 사이여야 합니다.</p>}<Button variant={side === "buy" ? "primary" : "destructive"} className="w-full" onClick={handleTrade} loading={isLoading} disabled={!isConnected || chainId !== ANVIL_CHAIN_ID || !quote || !validSlippage}>{actionLabel}</Button>{!isConnected && <p className="text-center text-[13px] text-text-secondary">거래하려면 지갑을 연결해주세요.</p>}{isConnected && chainId !== ANVIL_CHAIN_ID && <p className="text-center text-[13px] text-warning">Anvil 네트워크로 전환해주세요.</p>}</div></Card>
+          <Card className="h-fit"><div className="grid grid-cols-2 border-b border-border"><button type="button" onClick={() => { setSide("buy"); setAmount(""); }} className={`pb-3 text-sm font-semibold ${side === "buy" ? "border-b-2 border-primary text-primary" : "text-text-secondary"}`}>Buy {symbol}</button><button type="button" onClick={() => { setSide("sell"); setAmount(""); }} className={`pb-3 text-sm font-semibold ${side === "sell" ? "border-b-2 border-negative text-negative" : "text-text-secondary"}`}>Sell {symbol}</button></div><div className="mt-5 space-y-4"><Input id="trade-amount" label={side === "buy" ? "You pay" : "You receive"} suffix={inputAsset} inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={isLoading} />{isConnected && <p className="-mt-2 text-[12px] text-text-secondary">Balance: {side === "buy" ? `${formatTokenAmount(usdcBalance ?? 0n)} Test USDC` : `${formatTokenAmount(tokenBalance ?? 0n)} ${symbol}`}</p>}{side === "sell" && isConnected && <div className="flex justify-end gap-1">{SELL_PERCENTAGES.map((percentage) => <button key={percentage} type="button" onClick={() => setSellPercentage(percentage)} disabled={isLoading || !tokenBalance} className="h-7 rounded-sm border border-border-strong px-2 font-financial text-text-secondary hover:border-text-secondary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50">{percentage}%</button>)}<button type="button" onClick={() => setSellPercentage(100)} disabled={isLoading || !tokenBalance} className="h-7 rounded-sm border border-border-strong px-2 font-financial text-text-secondary hover:border-text-secondary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50">MAX</button></div>}<div className="flex justify-center"><ArrowDown className="size-5 text-text-muted" /></div><div className="rounded-md border border-border bg-surface-elevated p-3 text-[13px]"><p className="text-text-secondary">{side === "buy" ? "You receive" : "You sell"}</p><p className="mt-1 font-financial text-xl text-text-primary">{side === "buy" ? (quote ? `≈ ${formatTokenAmount(quote)} ${outputAsset}` : "") : (amountIn > 0n ? `≈ ${formatTokenAmount(amountIn)} ${symbol}` : "")}</p></div><div className="rounded-md bg-surface-elevated p-3 text-[13px]"><div className="flex justify-between"><span className="text-text-secondary">Minimum received</span><span className="font-financial text-text-primary">{quote ? `${formatTokenAmount(minAmountOut)} ${side === "buy" ? outputAsset : "fUSDC"}` : ""}</span></div></div><Input id="slippage" label="Slippage tolerance" suffix="%" inputMode="decimal" placeholder="1.00" value={slippage} onChange={(event) => setSlippage(event.target.value)} disabled={isLoading} /><div className="grid grid-cols-2 gap-y-2 text-[13px]"><span className="text-text-secondary">Fee</span><span className="text-right font-financial text-text-primary">{formatTokenAmount(fee)} {inputAsset}</span><span className="text-text-secondary">Protocol</span><span className="text-right font-financial text-text-primary">{formatTokenAmount(protocolFee)} {inputAsset}</span><span className="text-text-secondary">Creator</span><span className="text-right font-financial text-text-primary">{formatTokenAmount(creatorFee)} {inputAsset}</span></div>{txError && <p className="text-[13px] text-negative">{txError.message.split("\n")[0]}</p>}{!validSlippage && <p className="text-[13px] text-negative">Slippage는 0%에서 100% 사이여야 합니다.</p>}<Button variant={side === "buy" ? "primary" : "destructive"} className="w-full" onClick={handleTrade} loading={isLoading} disabled={!isConnected || chainId !== ANVIL_CHAIN_ID || !quote || !validSlippage}>{actionLabel}</Button>{!isConnected && <p className="text-center text-[13px] text-text-secondary">거래하려면 지갑을 연결해주세요.</p>}{isConnected && chainId !== ANVIL_CHAIN_ID && <p className="text-center text-[13px] text-warning">Anvil 네트워크로 전환해주세요.</p>}</div></Card>
         </div>
       )}
       <Card className="mt-6"><h2 className="text-[15px] font-semibold text-text-primary">About</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-text-secondary">{metadata?.description ?? ""}</p></Card>

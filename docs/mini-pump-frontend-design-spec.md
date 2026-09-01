@@ -664,22 +664,27 @@ Fee
 ```text
 Sell MEME
 
-MEME
-[ 1,000 ]
-
-Balance: 12,483 MEME
-
 You receive
-≈ 9.82 USDC
+[ 9.82 ] fUSDC
+
+Available: 122.71 fUSDC
+
+You sell
+≈ 1,000 MEME
 
 Minimum received
-9.72 USDC
+9.72 fUSDC
 
 Fee
-0.10 USDC
+0.10 fUSDC
 
 [ SELL MEME ]
 ```
+
+- Sell 입력값은 매도할 토큰 수량이 아닌 사용자가 수령하려는 `fUSDC` 금액이다.
+- UI는 현재 bonding curve reserves와 기존 `getSellAmountOut` 수식을 기준으로 목표 수령액을 달성하는 최소 토큰 수량을 역산한다.
+- 역산된 토큰 수량은 `You sell`에 표시하고, 기존 컨트랙트의 `sell(tokenAmount, minAmountOut)`에는 이 값을 전달한다.
+- `10%`, `25%`, `50%`, `MAX` 빠른 선택은 보유 토큰의 해당 비율을 전부 매도했을 때 받는 fUSDC 금액을 입력한다.
 
 ## 13.5 Transaction States
 
@@ -791,6 +796,7 @@ Rendering:
 - 1H: 현재 시각부터 지난 1시간을 1분 단위의 균일한 61개 time bucket으로 변환한다.
 - 24H: 현재 시각부터 지난 24시간을 30분 단위의 균일한 49개 time bucket으로 변환한다.
 - 각 bucket은 해당 구간에서 가장 마지막에 체결된 거래 가격을 사용한다. 거래가 없는 bucket은 직전 가격을 이어서 사용해 시간축 간격을 일정하게 유지한다. 범위 시작 전 마지막 거래가 있으면 첫 bucket의 시작 가격으로 사용한다.
+- 마지막 bucket은 종료 시각까지 기다리지 않고 현재 시각까지 발생한 거래를 즉시 반영한다. 예를 들어 진행 중인 10:35분 bucket에는 10:35:00부터 현재 시각까지의 마지막 체결 가격을 표시한다.
 - 범위 안에 거래가 하나도 없으면 빈 차트 대신 empty state를 표시한다.
 - Recharts `ResponsiveContainer` + `LineChart`로 구현하며 카드 폭에 맞춰 반응형으로 렌더링한다.
 - Line은 accent color 1개만 사용하고(`type="linear"`, `dot={false}`), 별도 grid line은 최소화한다.

@@ -53,8 +53,9 @@ export function buildChartData(
 
   return Array.from({ length: bucketCount + 1 }, (_, index) => {
     const timestamp = startTimestamp + index * intervalSeconds;
+    const bucketEnd = index === bucketCount ? nowSeconds : timestamp;
 
-    while (tradeIndex < trades.length && trades[tradeIndex].timestamp <= timestamp) {
+    while (tradeIndex < trades.length && trades[tradeIndex].timestamp <= bucketEnd) {
       latestPrice = Number(formatUnits(trades[tradeIndex].price, 18));
       tradeIndex += 1;
     }
@@ -91,6 +92,7 @@ export function useTradeHistory(curveAddress?: Address) {
     queryKey: ["tradeHistory", curveAddress, publicClient?.chain.id],
     enabled: Boolean(curveAddress) && Boolean(publicClient),
     staleTime: 15_000,
+    refetchInterval: 5_000,
     queryFn: async (): Promise<Trade[]> => {
       if (!publicClient || !curveAddress) return [];
 

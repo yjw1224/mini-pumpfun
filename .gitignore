@@ -18,3 +18,6 @@ out/
 
 # sample image
 /sample_img/
+
+# local anvil state
+anvil-state.json

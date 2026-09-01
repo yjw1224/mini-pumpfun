@@ -31,7 +31,8 @@ import {
 } from "@/lib/contracts";
 import { formatMarketCap, formatPercent, formatTokenAmount, formatUsd, truncateAddress } from "@/lib/format";
 import { toGatewayUrl } from "@/lib/ipfs";
-import { buildChartData, type ChartRange, useTradeHistory } from "@/hooks/useTradeHistory";
+import { buildChartData, buildOhlcData, type ChartRange, useTradeHistory } from "@/hooks/useTradeHistory";
+import { TradeCandlestickChart } from "@/components/token/TradeCandlestickChart";
 
 const ANVIL_CHAIN_ID = 31337;
 const BPS_DENOMINATOR = 10_000n;
@@ -58,6 +59,10 @@ function parseAmount(value: string) {
 
 function formatChartTime(timestampSeconds: number, options: Intl.DateTimeFormatOptions) {
   return new Date(timestampSeconds * 1000).toLocaleTimeString([], options);
+}
+
+function formatChartPrice(price: number) {
+  return `$${price.toFixed(6)}`;
 }
 
 export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
@@ -104,6 +109,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
     () => chartTimeframe === "all" ? [] : buildChartData(trades, chartTimeframe),
     [chartTimeframe, trades]
   );
+  const ohlcData = useMemo(() => buildOhlcData(trades), [trades]);
   const hasTradesInRange = chartData.some((point) => point.price !== null);
 
   const amountIn = parseAmount(amount);
@@ -232,7 +238,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
             <Card><div className="grid gap-5"><div><div className="flex items-center gap-2"><button type="button" onClick={() => setShowPrice(!showPrice)} className="text-text-secondary hover:text-text-primary transition-colors" title="Toggle between Price and Market Cap"><ArrowRightLeft size={14} /></button><p className="text-[13px] font-medium text-text-secondary">{showPrice ? "Price" : "Market Cap"}</p></div><p className="mt-1 font-financial text-3xl font-semibold text-text-primary">{showPrice ? formatUsd(price) : formatMarketCap((price * (totalSupply ?? 0n)) / 10n ** 18n)}</p></div></div></Card>
             <Card>
               <div className="flex items-center justify-between">
-                <h2 className="text-[15px] font-semibold text-text-primary">Price chart</h2>
+                <h2 className="text-[15px] font-semibold text-text-primary">{symbol ?? "TOKEN"} / fUSDC Live Chart</h2>
                 <div className="flex items-center gap-3">
                   <div className="flex rounded-md border border-border bg-surface p-0.5">
                     {[
@@ -262,8 +268,12 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
                 </div>
               </div>
               <div className="mt-4 h-64 border-y border-border">
-                {chartMode !== "recharts" ? (
-                  <div className="flex h-full items-center justify-center text-[13px] text-text-muted"></div>
+                {chartMode === "tradingview" ? (
+                  ohlcData.length === 0 ? (
+                    <div className="flex h-full items-center justify-center text-[13px] text-text-muted">아직 거래 내역이 없습니다.</div>
+                  ) : (
+                    <TradeCandlestickChart data={ohlcData} />
+                  )
                 ) : isChartLoading ? (
                   <div className="flex h-full items-center justify-center text-[13px] text-text-muted">불러오는 중...</div>
                 ) : !hasTradesInRange ? (
@@ -282,7 +292,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
                       <YAxis
                         dataKey="price"
                         domain={["auto", "auto"]}
-                        tickFormatter={(value: number) => `$${value.toLocaleString("en-US", { maximumFractionDigits: 6 })}`}
+                        tickFormatter={(value: number) => formatChartPrice(value)}
                         stroke="var(--color-text-muted)"
                         fontSize={11}
                         tickLine={false}
@@ -291,7 +301,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
                       />
                       <Tooltip
                         labelFormatter={(label) => formatChartTime(Number(label), { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                        formatter={(value) => [`$${Number(value).toLocaleString("en-US", { maximumFractionDigits: 6 })}`, "Price"]}
+                        formatter={(value) => [formatChartPrice(Number(value)), "Price"]}
                         contentStyle={{ background: "var(--color-surface-elevated)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
                         labelStyle={{ color: "var(--color-text-secondary)" }}
                       />

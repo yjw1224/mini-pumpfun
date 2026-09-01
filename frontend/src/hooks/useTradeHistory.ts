@@ -23,6 +23,14 @@ export type ChartPoint = {
 
 export type ChartRange = "1h" | "24h";
 
+export type OhlcPoint = {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
 const tokensPurchasedEvent = getAbiItem({ abi: bondingCurveAbi, name: "TokensPurchased" });
 const tokensSoldEvent = getAbiItem({ abi: bondingCurveAbi, name: "TokensSold" });
 
@@ -53,6 +61,27 @@ export function buildChartData(
 
     return { timestamp, price: latestPrice };
   });
+}
+
+export function buildOhlcData(trades: Trade[], intervalSeconds = 5 * 60): OhlcPoint[] {
+  const candles = new Map<number, OhlcPoint>();
+
+  for (const trade of trades) {
+    const time = Math.floor(trade.timestamp / intervalSeconds) * intervalSeconds;
+    const price = Number(formatUnits(trade.price, 18));
+    const candle = candles.get(time);
+
+    if (!candle) {
+      candles.set(time, { time, open: price, high: price, low: price, close: price });
+      continue;
+    }
+
+    candle.high = Math.max(candle.high, price);
+    candle.low = Math.min(candle.low, price);
+    candle.close = price;
+  }
+
+  return [...candles.values()];
 }
 
 export function useTradeHistory(curveAddress?: Address) {

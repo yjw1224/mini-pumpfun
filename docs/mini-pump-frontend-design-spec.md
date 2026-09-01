@@ -777,7 +777,7 @@ Rendering:
 
 ```text
 ┌──────────────────────────────────────────┐
-│ Price chart              [Recharts][TV]  │
+│ CKW / fUSDC              [Recharts][TV]  │
 ├──────────────────────────────────────────┤
 │                                     ╱╲    │
 │                         ╱╲___╱╲___╱  ╲   │
@@ -786,7 +786,8 @@ Rendering:
 └──────────────────────────────────────────┘
 ```
 
-- Chart header: `Price chart` 제목 오른쪽에 `1H`, `24H`, `ALL` 세그먼트 컨트롤을 표시한다. 활성 범위는 primary 배경과 background 텍스트로 구분한다. `ALL`은 데이터 가공 규칙이 확정될 때까지 비활성 상태로 표시한다.
+- Chart header: 거래 페어를 `{TOKEN_TICKER} / fUSDC` 형식으로 표시한다. 예: `CKW / fUSDC`.
+- Chart header 오른쪽에 `1H`, `24H`, `ALL` 세그먼트 컨트롤을 표시한다. 활성 범위는 primary 배경과 background 텍스트로 구분한다. `ALL`은 데이터 가공 규칙이 확정될 때까지 비활성 상태로 표시한다.
 - 1H: 현재 시각부터 지난 1시간을 1분 단위의 균일한 61개 time bucket으로 변환한다.
 - 24H: 현재 시각부터 지난 24시간을 30분 단위의 균일한 49개 time bucket으로 변환한다.
 - 각 bucket은 해당 구간에서 가장 마지막에 체결된 거래 가격을 사용한다. 거래가 없는 bucket은 직전 가격을 이어서 사용해 시간축 간격을 일정하게 유지한다. 범위 시작 전 마지막 거래가 있으면 첫 bucket의 시작 가격으로 사용한다.
@@ -794,10 +795,12 @@ Rendering:
 - Recharts `ResponsiveContainer` + `LineChart`로 구현하며 카드 폭에 맞춰 반응형으로 렌더링한다.
 - Line은 accent color 1개만 사용하고(`type="linear"`, `dot={false}`), 별도 grid line은 최소화한다.
 - X축은 timestamp를 `HH:mm` 형태로 축약 표시한다.
-- Y축은 가격을 `formatUsd`와 동일한 규칙으로 축약 표시한다.
-- Tooltip은 hover 시점의 가격과 시각을 함께 표시한다.
+- Y축, tooltip, Lightweight Charts의 price scale은 $ 소수점 여섯째 자리까지 표시한다. 예: `$0.000123`. 체결가의 18-decimals fixed point 원본 값은 변환 전까지 유지한다.
 - 거래 내역이 없으면 라인 대신 "아직 거래 내역이 없습니다" 형태의 empty state 문구를 표시한다.
-- OHLC/Candle, TradingView 위젯, 이동평균 등은 이번 단계에서 구현하지 않는다.
+- TradingView 모드에서는 동일한 `Trade[]`를 5분 단위 OHLC candle로 집계해 Lightweight Charts로 렌더링한다. 각 candle의 open/high/low/close는 해당 5분 구간의 시간순 체결 가격으로 계산한다.
+- 거래가 없는 5분 구간에는 candle을 생성하지 않는다. 차트 라이브러리의 time scale이 실제 timestamp를 기준으로 표시해 candle의 시각을 보존한다.
+- Candle 상승색은 primary, 하락색은 negative를 사용하며 border와 wick도 본문색과 동일하게 맞춘다. 기본 제공 attribution 링크는 숨기지 않는다.
+- OHLC/Candle은 5분봉 시범 구현 범위에 한정한다. 다른 candle 간격, 이동평균, TradingView 위젯은 이번 단계에서 구현하지 않는다.
 
 Charts must communicate data, not make the page look impressive.
 

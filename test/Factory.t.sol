@@ -25,14 +25,16 @@ contract FactoryTest is Test {
         (address firstTokenAddress, address firstCurveAddress) = factory.createToken(
             "Doge",
             "DOGE",
-            INITIAL_PRICE
+            INITIAL_PRICE,
+            "ipfs://doge"
         );
 
         vm.prank(bob);
         (address secondTokenAddress, address secondCurveAddress) = factory.createToken(
             "Cat",
             "CAT",
-            2e18
+            2e18,
+            "ipfs://cat"
         );
 
         MemeToken firstToken = MemeToken(firstTokenAddress);
@@ -42,6 +44,8 @@ contract FactoryTest is Test {
 
         assertTrue(firstTokenAddress != secondTokenAddress);
         assertTrue(firstCurveAddress != secondCurveAddress);
+    assertEq(firstToken.tokenURI(), "ipfs://doge");
+    assertEq(secondToken.tokenURI(), "ipfs://cat");
         assertEq(firstToken.curve(), firstCurveAddress);
         assertEq(secondToken.curve(), secondCurveAddress);
         assertEq(address(firstCurve.token()), firstTokenAddress);
@@ -72,7 +76,7 @@ contract FactoryTest is Test {
 
     function test_GraduateTokenSucceedsForOwnCurve() public {
         vm.prank(alice);
-        (, address curveAddress) = factory.createToken("Doge", "DOGE", INITIAL_PRICE);
+        (, address curveAddress) = factory.createToken("Doge", "DOGE", INITIAL_PRICE, "ipfs://doge");
         BondingCurve curve = BondingCurve(curveAddress);
 
         // Exact USDC amount (see BondingCurve.t.sol) needed to drain the 800k real token reserve.
@@ -94,14 +98,16 @@ contract FactoryTest is Test {
         (, address firstCurveAddress) = factory.createToken(
             "Doge",
             "DOGE",
-            INITIAL_PRICE
+            INITIAL_PRICE,
+            "ipfs://doge"
         );
 
         vm.prank(bob);
         (address secondTokenAddress, address secondCurveAddress) = factory.createToken(
             "Cat",
             "CAT",
-            INITIAL_PRICE
+            INITIAL_PRICE,
+            "ipfs://cat"
         );
 
         BondingCurve firstCurve = BondingCurve(firstCurveAddress);

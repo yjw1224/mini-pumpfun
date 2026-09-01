@@ -37,7 +37,7 @@ contract BondingCurveTest is Test {
         assertEq(fakeUSDC.decimals(), 18, "Decimal is not 1e18");
 
         vm.prank(creator);
-        memeToken = new MemeToken("Meme Token", "MT");
+        memeToken = new MemeToken("Meme Token", "MT", "ipfs://meme-token");
         vm.prank(creator);
         curve = new BondingCurve(address(memeToken), address(fakeUSDC), master, initialTokenPrice, creator);
         vm.prank(creator);

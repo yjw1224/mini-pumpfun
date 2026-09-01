@@ -6,9 +6,12 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract MemeToken is ERC20, Ownable {
     address public curve;
+    string public tokenURI;
     uint256 public constant MAX_SUPPLY = 1000000 * 1e18; // 1 million tokens
 
-    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) Ownable(msg.sender) {}
+    constructor(string memory name_, string memory symbol_, string memory tokenURI_) ERC20(name_, symbol_) Ownable(msg.sender) {
+        tokenURI = tokenURI_;
+    }
 
     function setCurve(address _curve) external onlyOwner {
         require(curve == address(0), "Curve already set");

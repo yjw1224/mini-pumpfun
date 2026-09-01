@@ -22,9 +22,10 @@ contract Factory {
 	function createToken(
 		string calldata name_,
 		string calldata symbol_,
-		uint256 initialPrice
+		uint256 initialPrice,
+		string calldata tokenURI_
 	) external returns (address tokenAddress, address curveAddress) {
-		MemeToken token = new MemeToken(name_, symbol_);
+		MemeToken token = new MemeToken(name_, symbol_, tokenURI_);
 		BondingCurve curve = new BondingCurve(
 			address(token),
 			fakeUSDC,

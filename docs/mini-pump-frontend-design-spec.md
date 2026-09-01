@@ -959,6 +959,22 @@ Keep notifications compact.
 
 Do not use oversized modal dialogs for routine transaction feedback.
 
+### Token creation success Toast
+
+토큰 생성 트랜잭션이 확정되어 토큰 대시보드로 이동한 뒤 성공 Toast를 표시한다.
+
+- Position: viewport bottom-left, 16px inset
+- Width: 최대 360px, mobile에서는 좌우 16px을 제외한 전체 너비
+- Layout: 12px padding, icon/content/close button 사이 12px gap
+- Radius: 10px
+- Surface: semi-transparent `--color-surface`, `--color-border` border, subtle shadow, backdrop blur
+- Success icon: `--color-positive` circular background with a dark check icon
+- Title: `Token created successfully`
+- Supporting text: `Your token is now live.`
+- Dismiss: 우측 `X` icon button 제공
+- Duration: 3 seconds, dismiss 시 즉시 제거
+- Motion: 좌측에서 16px 이동하며 200ms fade-in으로 나타나고, 제거 시 300ms fade-out 적용
+
 ---
 
 # 23. Loading States

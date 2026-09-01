@@ -11,6 +11,11 @@ export const memeTokenAbi = [
         "name": "symbol_",
         "type": "string",
         "internalType": "string"
+      },
+      {
+        "name": "tokenURI_",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "stateMutability": "nonpayable"
@@ -220,6 +225,19 @@ export const memeTokenAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tokenURI",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "stateMutability": "view"

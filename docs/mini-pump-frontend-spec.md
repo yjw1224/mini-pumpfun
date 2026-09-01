@@ -99,6 +99,12 @@ Token Name
 Symbol
 [ MEME ]
 
+Description
+[ A cute meme token on Mini Pump. ]
+
+Image
+[ Upload image ]
+
 Initial Price
 [ 1.0 ] USDC
 
@@ -121,9 +127,22 @@ Real Token Reserve
 
 - `name`
 - `symbol`
+- `description`
+- `image`
 - `initialPrice`
 
 `initialPrice`는 FakeUSDC 18 decimals 기준으로 `parseUnits(value, 18)` 처리한다.
+
+이미지는 Pinata에 업로드하고 반환된 CID를 `ipfs://<CID>` 형식으로 사용한다. 이후 다음 JSON 메타데이터를 Pinata에 업로드하고, 반환된 JSON CID를 `tokenURI`로 Factory에 전달한다.
+
+```json
+{
+  "name": "CHIIKAWA",
+  "symbol": "CHIKA",
+  "description": "A cute meme token on Mini Pump.",
+  "image": "ipfs://bafy..."
+}
+```
 
 ## Transaction
 
@@ -131,7 +150,8 @@ Real Token Reserve
 Factory.createToken(
     name,
     symbol,
-    initialPrice
+  initialPrice,
+  tokenURI
 )
 ```
 

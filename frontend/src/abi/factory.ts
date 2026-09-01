@@ -52,6 +52,11 @@ export const factoryAbi = [
         "name": "initialPrice",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "tokenURI_",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "outputs": [

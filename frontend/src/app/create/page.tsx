@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { parseUnits, decodeEventLog } from "viem";
+import { Upload } from "lucide-react";
 import {
   useAccount,
   useWaitForTransactionReceipt,
@@ -20,8 +21,11 @@ export default function CreateTokenPage() {
 
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
+  const [description, setDescription] = useState("");
+  const [image, setImage] = useState<File | null>(null);
   const [initialPrice, setInitialPrice] = useState("1.0");
   const [formError, setFormError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const {
     writeContract,
@@ -47,7 +51,7 @@ export default function CreateTokenPage() {
           data: log.data,
           topics: log.topics,
         });
-        router.push(`/token/${decoded.args.token}`);
+        router.push(`/token/${decoded.args.token}?created=1`);
         return;
       } catch {
         // not a TokenCreated log, keep scanning
@@ -55,12 +59,29 @@ export default function CreateTokenPage() {
     }
   }, [receipt, router]);
 
-  function handleSubmit(event: React.FormEvent) {
+  async function uploadToPinata(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/pinata", {
+      method: "POST",
+      body: formData,
+    });
+    const result = (await response.json()) as { error?: string; ipfsHash?: string };
+
+    if (!response.ok || !result.ipfsHash) {
+      throw new Error(result.error ?? "Pinata 업로드에 실패했습니다.");
+    }
+
+    return `ipfs://${result.ipfsHash}`;
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setFormError(null);
 
-    if (!name.trim() || !symbol.trim()) {
-      setFormError("Name과 Symbol을 입력해주세요.");
+    if (!name.trim() || !symbol.trim() || !description.trim() || !image) {
+      setFormError("Name, Symbol, Description, Image를 모두 입력해주세요.");
       return;
     }
 
@@ -76,15 +97,30 @@ export default function CreateTokenPage() {
       return;
     }
 
-    writeContract({
-      address: FACTORY_ADDRESS,
-      abi: factoryAbi,
-      functionName: "createToken",
-      args: [name.trim(), symbol.trim(), parsedPrice],
-    });
+    try {
+      setIsUploading(true);
+      const imageUri = await uploadToPinata(image);
+      const metadata = new File(
+        [JSON.stringify({ name: name.trim(), symbol: symbol.trim(), description: description.trim(), image: imageUri })],
+        "metadata.json",
+        { type: "application/json" }
+      );
+      const tokenUri = await uploadToPinata(metadata);
+
+      writeContract({
+        address: FACTORY_ADDRESS,
+        abi: factoryAbi,
+        functionName: "createToken",
+        args: [name.trim(), symbol.trim(), parsedPrice, tokenUri],
+      });
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "메타데이터 업로드에 실패했습니다.");
+    } finally {
+      setIsUploading(false);
+    }
   }
 
-  const isSubmitting = isSigning || isConfirming;
+  const isSubmitting = isUploading || isSigning || isConfirming;
   const txError = writeError ?? receiptError;
 
   return (
@@ -111,6 +147,37 @@ export default function CreateTokenPage() {
             onChange={(event) => setSymbol(event.target.value)}
             disabled={isSubmitting}
           />
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="description" className="text-[13px] font-medium text-text-secondary">
+              Description
+            </label>
+            <textarea
+              id="description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              disabled={isSubmitting}
+              placeholder="A cute meme token on Mini Pump."
+              rows={3}
+              className="w-full resize-y rounded-md border border-border bg-surface px-3 py-3 text-[15px] text-text-primary outline-none placeholder:text-text-muted focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="image" className="text-[13px] font-medium text-text-secondary">
+              Image
+            </label>
+            <label className="flex h-12 cursor-pointer items-center gap-2 rounded-md border border-border bg-surface px-3 text-[15px] text-text-secondary hover:border-primary has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
+              <Upload className="size-4 shrink-0" />
+              <span className="truncate">{image?.name ?? "Upload image"}</span>
+              <input
+                id="image"
+                type="file"
+                accept="image/*"
+                disabled={isSubmitting}
+                className="sr-only"
+                onChange={(event) => setImage(event.target.files?.[0] ?? null)}
+              />
+            </label>
+          </div>
           <Input
             id="initialPrice"
             label="Initial Price"
@@ -163,6 +230,8 @@ export default function CreateTokenPage() {
               ? "Confirm in wallet..."
               : isConfirming
                 ? "Transaction pending..."
+                : isUploading
+                  ? "Uploading metadata..."
                 : "Create Token"}
           </Button>
           {!isConnected && (

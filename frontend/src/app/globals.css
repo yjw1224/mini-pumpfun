@@ -57,3 +57,35 @@ body {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-exit {
+  to {
+    opacity: 0;
+  }
+}
+
+.animate-toast-enter {
+  animation: toast-enter 200ms ease-out;
+}
+
+.animate-toast-exit {
+  animation: toast-exit 300ms ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-toast-enter,
+  .animate-toast-exit {
+    animation-duration: 1ms;
+  }
+}

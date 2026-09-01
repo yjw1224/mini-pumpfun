@@ -7,8 +7,6 @@ import { useState, type ReactNode } from "react";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi";
 
-// RainbowKit's modal is themed to match the app's dark/neutral tokens
-// instead of its default look, per the design system.
 const rainbowKitTheme = darkTheme({
   accentColor: "#00c805",
   accentColorForeground: "#0a0a0a",

@@ -18,9 +18,10 @@ contract BondingCurve is Ownable, ReentrancyGuard {
     address public immutable master;
     address public immutable creator;
 
-    uint256 private immutable INITIAL_PRICE;
-    uint256 public constant MAX_TOKEN_SUPPLY = 1_000_000 * 1e18; // 1 million tokens
-    uint256 public constant INITIAL_TOKEN_RESERVE = 800_000 * 1e18; // 800k tokens
+    uint256 public constant TOTAL_SUPPLY = 10_000_000 * 1e18;
+    uint256 public constant INITIAL_MCAP = 1_000 * 1e18;
+    uint256 public constant GRADUATION_MCAP = 100_000 * 1e18;
+    uint256 public constant INITIAL_TOKEN_RESERVE = 9_000_000 * 1e18;
     uint256 public constant FEE = 100; // 100bp fee (1%)
     uint256 public constant FEE_PROTOCOL = 70; // 70bp fee to protocol (0.7%)
     uint256 public virtualTokenReserve;
@@ -38,7 +39,6 @@ contract BondingCurve is Ownable, ReentrancyGuard {
         address _token,
         address _fakeUSDC,
         address _master,
-        uint256 _initialPrice,
         address _creator
     ) Ownable(msg.sender) {
         isInitialized = false;
@@ -46,11 +46,10 @@ contract BondingCurve is Ownable, ReentrancyGuard {
         token = MemeToken(_token);
         fakeUSDC = IERC20(_fakeUSDC);
 
-        virtualTokenReserve = 1_000_000 * 1e18; // 1 million token
-        INITIAL_PRICE = _initialPrice;
-        virtualUSDCReserve = INITIAL_PRICE * virtualTokenReserve / 1e18;
+        virtualTokenReserve = TOTAL_SUPPLY;
+        virtualUSDCReserve = INITIAL_MCAP;
 
-        realTokenReserve = INITIAL_TOKEN_RESERVE; // 800k token
+        realTokenReserve = INITIAL_TOKEN_RESERVE;
 
         master = _master;
         creator = _creator;
@@ -88,6 +87,10 @@ contract BondingCurve is Ownable, ReentrancyGuard {
         IERC20(address(token)).safeTransfer(msg.sender, amountOut);
 
         emit Buy(msg.sender, amountIn, amountOut);
+
+        if (marketCap() >= GRADUATION_MCAP) {
+            _graduate();
+        }
     }
 
     function sell(uint256 amountIn, uint256 minAmountOut) external nonReentrant returns (uint256 amountOut) {
@@ -132,13 +135,25 @@ contract BondingCurve is Ownable, ReentrancyGuard {
         netAmountOut = amountOut - fee;
     }
 
-    // Permissionless: anyone can trigger graduation once the reserve condition is met.
+    function currentPrice() public view returns (uint256) {
+        return virtualUSDCReserve * 1e18 / virtualTokenReserve;
+    }
+
+    function marketCap() public view returns (uint256) {
+        return currentPrice() * TOTAL_SUPPLY / 1e18;
+    }
+
+    // Permissionless: anyone can trigger graduation once the market cap threshold is met.
     function graduate() external {
-        require(realTokenReserve == 0, "Token reserve must be 0 to graduate");
+        _graduate();
+    }
+
+    function _graduate() internal {
+        require(marketCap() >= GRADUATION_MCAP, "Market cap below graduation threshold");
         require(!graduated, "Already graduated");
         graduated = true;
 
-        uint256 tokenAmount = MAX_TOKEN_SUPPLY - token.totalSupply();
+        uint256 tokenAmount = TOTAL_SUPPLY - token.totalSupply();
         uint256 remainingUSDC = fakeUSDC.balanceOf(address(this));
 
         token.mint(address(this), tokenAmount);

@@ -782,6 +782,25 @@ Do not turn every table row into a large rounded card.
 
 Token cards should remain compact.
 
+### Market Cap and Ticker Formatting
+
+Market Cap은 `$` 접두어와 compact unit을 사용한다.
+
+```text
+$123         below $1K
+$1.23K       $1K to below $10K
+$12.3K       $10K to below $1M
+$1.23M       $1M to below $10M
+$12.3M       $10M to below $1B
+$1.23B       $1B to below $10B
+$12.3B       $10B to below $100B
+$123B        $100B or above
+```
+
+- 1부터 10 미만의 K/M/B 값은 최대 소수점 둘째 자리까지 표시한다.
+- 10 이상 K/M/B 값은 최대 소수점 첫째 자리까지 표시한다.
+- Token Card의 ticker는 `$` 접두어를 붙여 표시한다. 예: `$MEME`
+
 Required information:
 
 ```text

@@ -18,11 +18,6 @@ export const bondingCurveAbi = [
         "internalType": "address"
       },
       {
-        "name": "_initialPrice",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
         "name": "_creator",
         "type": "address",
         "internalType": "address"
@@ -71,7 +66,33 @@ export const bondingCurveAbi = [
   },
   {
     "type": "function",
-    "name": "MAX_TOKEN_SUPPLY",
+    "name": "GRADUATION_MCAP",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "INITIAL_MCAP",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "TOTAL_SUPPLY",
     "inputs": [],
     "outputs": [
       {
@@ -147,6 +168,19 @@ export const bondingCurveAbi = [
   },
   {
     "type": "function",
+    "name": "currentPrice",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getBuyAmountOut",
     "inputs": [
       {
@@ -196,6 +230,19 @@ export const bondingCurveAbi = [
     "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "marketCap",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",

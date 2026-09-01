@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { parseUnits, decodeEventLog } from "viem";
+import { decodeEventLog } from "viem";
 import { Upload } from "lucide-react";
 import {
   useAccount,
@@ -23,7 +23,6 @@ export default function CreateTokenPage() {
   const [symbol, setSymbol] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState<File | null>(null);
-  const [initialPrice, setInitialPrice] = useState("1.0");
   const [formError, setFormError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -85,18 +84,6 @@ export default function CreateTokenPage() {
       return;
     }
 
-    let parsedPrice: bigint;
-    try {
-      parsedPrice = parseUnits(initialPrice || "0", 18);
-    } catch {
-      setFormError("Initial Price 형식이 올바르지 않습니다.");
-      return;
-    }
-    if (parsedPrice <= 0n) {
-      setFormError("Initial Price는 0보다 커야 합니다.");
-      return;
-    }
-
     try {
       setIsUploading(true);
       const imageUri = await uploadToPinata(image);
@@ -111,7 +98,7 @@ export default function CreateTokenPage() {
         address: FACTORY_ADDRESS,
         abi: factoryAbi,
         functionName: "createToken",
-        args: [name.trim(), symbol.trim(), parsedPrice, tokenUri],
+        args: [name.trim(), symbol.trim(), tokenUri],
       });
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "메타데이터 업로드에 실패했습니다.");
@@ -178,19 +165,19 @@ export default function CreateTokenPage() {
               />
             </label>
           </div>
-          <Input
-            id="initialPrice"
-            label="Initial Price"
-            type="number"
-            step="any"
-            min="0"
-            suffix="USDC"
-            value={initialPrice}
-            onChange={(event) => setInitialPrice(event.target.value)}
-            disabled={isSubmitting}
-          />
-
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-md bg-surface-elevated p-3 text-[13px]">
+            <span className="text-text-secondary">Initial MCap</span>
+            <span className="text-right font-financial text-text-primary">
+              $1,000
+            </span>
+            <span className="text-text-secondary">Graduation MCap</span>
+            <span className="text-right font-financial text-text-primary">
+              $100,000
+            </span>
+            <span className="text-text-secondary">Total Supply</span>
+            <span className="text-right font-financial text-text-primary">
+              10,000,000 tokens
+            </span>
             <span className="text-text-secondary">Fee</span>
             <span className="text-right font-financial text-text-primary">
               1%
@@ -205,7 +192,7 @@ export default function CreateTokenPage() {
             </span>
             <span className="text-text-secondary">Real Token Reserve</span>
             <span className="text-right font-financial text-text-primary">
-              800,000 tokens
+              9,000,000 tokens
             </span>
           </div>
 

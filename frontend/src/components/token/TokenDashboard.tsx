@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, CandlestickChart, Copy, LineChart, X } from "lucide-react";
+import { ArrowDown, ArrowRightLeft, CandlestickChart, Copy, LineChart, X } from "lucide-react";
 import { formatUnits, isAddress, parseUnits, zeroAddress } from "viem";
 import {
   useAccount,
@@ -21,7 +21,7 @@ import {
   fakeUSDCAbi,
   memeTokenAbi,
 } from "@/lib/contracts";
-import { formatPercent, formatTokenAmount, formatUsd, truncateAddress } from "@/lib/format";
+import { formatMarketCap, formatPercent, formatTokenAmount, formatUsd, truncateAddress } from "@/lib/format";
 import { toGatewayUrl } from "@/lib/ipfs";
 
 const ANVIL_CHAIN_ID = 31337;
@@ -56,6 +56,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   const [slippage, setSlippage] = useState(DEFAULT_SLIPPAGE);
   const [metadata, setMetadata] = useState<TokenMetadata | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [showPrice, setShowPrice] = useState(true);
   const approvalHandled = useRef<string | undefined>(undefined);
 
   const { data: curve } = useReadContract({
@@ -78,7 +79,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   const { data: virtualUSDCReserve, refetch: refetchVirtualUSDCReserve } = useReadContract({ address: curveAddress, abi: bondingCurveAbi, functionName: "virtualUSDCReserve", query: { enabled: readEnabled } });
   const { data: realTokenReserve, refetch: refetchRealTokenReserve } = useReadContract({ address: curveAddress, abi: bondingCurveAbi, functionName: "realTokenReserve", query: { enabled: readEnabled } });
   const { data: initialTokenReserve, refetch: refetchInitialTokenReserve } = useReadContract({ address: curveAddress, abi: bondingCurveAbi, functionName: "INITIAL_TOKEN_RESERVE", query: { enabled: readEnabled } });
-  const { data: maxTokenSupply, refetch: refetchMaxTokenSupply } = useReadContract({ address: curveAddress, abi: bondingCurveAbi, functionName: "MAX_TOKEN_SUPPLY", query: { enabled: readEnabled } });
+  const { data: totalSupply, refetch: refetchTotalSupply } = useReadContract({ address: curveAddress, abi: bondingCurveAbi, functionName: "TOTAL_SUPPLY", query: { enabled: readEnabled } });
   const { data: amm } = useReadContract({ address: curveAddress, abi: bondingCurveAbi, functionName: "amm", query: { enabled: readEnabled } });
   const { data: usdcBalance, refetch: refetchUsdcBalance } = useReadContract({ address: FAKE_USDC_ADDRESS, abi: fakeUSDCAbi, functionName: "balanceOf", args: accountArgs, query: { enabled: Boolean(account) && isAddress(FAKE_USDC_ADDRESS) } });
   const { data: usdcAllowance, refetch: refetchUsdcAllowance } = useReadContract({ address: FAKE_USDC_ADDRESS, abi: fakeUSDCAbi, functionName: "allowance", args: account && curveAddress ? [account, curveAddress] : undefined, query: { enabled: Boolean(account && curveAddress) && isAddress(FAKE_USDC_ADDRESS) } });
@@ -140,7 +141,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   }, [tokenUri]);
 
   const refetchDetails = () => {
-    void Promise.all([refetchName(), refetchSymbol(), refetchTokenBalance(), refetchCreator(), refetchVirtualTokenReserve(), refetchVirtualUSDCReserve(), refetchRealTokenReserve(), refetchInitialTokenReserve(), refetchMaxTokenSupply(), refetchUsdcBalance(), refetchUsdcAllowance(), refetchTokenAllowance()]);
+    void Promise.all([refetchName(), refetchSymbol(), refetchTokenBalance(), refetchCreator(), refetchVirtualTokenReserve(), refetchVirtualUSDCReserve(), refetchRealTokenReserve(), refetchInitialTokenReserve(), refetchTotalSupply(), refetchUsdcBalance(), refetchUsdcAllowance(), refetchTokenAllowance()]);
   };
 
   useEffect(() => {
@@ -207,7 +208,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
       {isGraduated ? <Card><p className="text-sm font-medium text-info">Graduated</p><p className="mt-2 text-sm text-text-secondary">이 토큰은 AMM으로 이전되었습니다. AMM 거래 화면은 Phase 4에서 제공됩니다.</p></Card> : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
           <div className="space-y-6">
-            <Card><div className="grid gap-5 sm:grid-cols-2"><div><p className="text-[13px] text-text-secondary">Price</p><p className="mt-1 font-financial text-2xl text-text-primary">{formatUsd(price)}</p></div><div><p className="text-[13px] text-text-secondary">Market Cap</p><p className="mt-1 font-financial text-2xl text-text-primary">{formatUsd((price * (maxTokenSupply ?? 0n)) / 10n ** 18n, 0)}</p></div></div></Card>
+            <Card><div className="grid gap-5"><div><div className="flex items-center gap-2"><button type="button" onClick={() => setShowPrice(!showPrice)} className="text-text-secondary hover:text-text-primary transition-colors" title="Toggle between Price and Market Cap"><ArrowRightLeft size={14} /></button><p className="text-[13px] font-medium text-text-secondary">{showPrice ? "Price" : "Market Cap"}</p></div><p className="mt-1 font-financial text-3xl font-semibold text-text-primary">{showPrice ? formatUsd(price) : formatMarketCap((price * (totalSupply ?? 0n)) / 10n ** 18n)}</p></div></div></Card>
             <Card><div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold text-text-primary">Price chart</h2><div className="flex gap-1"><button type="button" title="Recharts chart" onClick={() => setChartMode("recharts")} className={`flex size-8 items-center justify-center rounded-md ${chartMode === "recharts" ? "bg-surface-elevated text-primary" : "text-text-secondary hover:text-text-primary"}`}><LineChart className="size-4" /></button><button type="button" title="TradingView chart" onClick={() => setChartMode("tradingview")} className={`flex size-8 items-center justify-center rounded-md ${chartMode === "tradingview" ? "bg-surface-elevated text-primary" : "text-text-secondary hover:text-text-primary"}`}><CandlestickChart className="size-4" /></button></div></div><div className="mt-4 flex h-64 items-center justify-center border-y border-border text-[13px] text-text-muted">{chartMode === "recharts" ? "" : ""}</div></Card>
             <Card><div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold text-text-primary">Bonding Curve Progress</h2><span className="font-financial text-sm text-primary">{formatPercent(progress)}</span></div><Progress ratio={progress} className="mt-4" /><div className="mt-3 flex justify-between text-[13px] text-text-secondary"><span>{formatTokenAmount((initialTokenReserve ?? 0n) - (realTokenReserve ?? 0n), 0)} / {formatTokenAmount(initialTokenReserve ?? 0n, 0)} tokens sold</span><span>Graduation at 100%</span></div></Card>
           </div>

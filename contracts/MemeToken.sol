@@ -7,7 +7,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 contract MemeToken is ERC20, Ownable {
     address public curve;
     string public tokenURI;
-    uint256 public constant MAX_SUPPLY = 1000000 * 1e18; // 1 million tokens
+    uint256 public constant MAX_SUPPLY = 10_000_000 * 1e18;
 
     constructor(string memory name_, string memory symbol_, string memory tokenURI_) ERC20(name_, symbol_) Ownable(msg.sender) {
         tokenURI = tokenURI_;

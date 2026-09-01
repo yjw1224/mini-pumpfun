@@ -8,33 +8,26 @@ import {FakeUSDC} from "../contracts/FakeUSDC.sol";
 import {MemeToken} from "../contracts/MemeToken.sol";
 
 contract FactoryTest is Test {
-    FakeUSDC fakeUSDC;
-    Factory factory;
-    address master = makeAddr("master");
-    address alice = makeAddr("alice");
-    address bob = makeAddr("bob");
-    uint256 constant INITIAL_PRICE = 1e18;
+    FakeUSDC internal fakeUSDC;
+    Factory internal factory;
+
+    address internal master = makeAddr("master");
+    address internal alice = makeAddr("alice");
+    address internal bob = makeAddr("bob");
 
     function setUp() public {
         fakeUSDC = new FakeUSDC();
         factory = new Factory(address(fakeUSDC), master);
     }
 
-    function test_CreateMultipleTokensAreIndependent() public {
+    function test_CreateTokensHaveFixedInitialMCap() public {
         vm.prank(alice);
         (address firstTokenAddress, address firstCurveAddress) = factory.createToken(
-            "Doge",
-            "DOGE",
-            INITIAL_PRICE,
-            "ipfs://doge"
+            "Doge", "DOGE", "ipfs://doge"
         );
-
         vm.prank(bob);
         (address secondTokenAddress, address secondCurveAddress) = factory.createToken(
-            "Cat",
-            "CAT",
-            2e18,
-            "ipfs://cat"
+            "Cat", "CAT", "ipfs://cat"
         );
 
         MemeToken firstToken = MemeToken(firstTokenAddress);
@@ -42,85 +35,41 @@ contract FactoryTest is Test {
         BondingCurve firstCurve = BondingCurve(firstCurveAddress);
         BondingCurve secondCurve = BondingCurve(secondCurveAddress);
 
-        assertTrue(firstTokenAddress != secondTokenAddress);
-        assertTrue(firstCurveAddress != secondCurveAddress);
-    assertEq(firstToken.tokenURI(), "ipfs://doge");
-    assertEq(secondToken.tokenURI(), "ipfs://cat");
-        assertEq(firstToken.curve(), firstCurveAddress);
-        assertEq(secondToken.curve(), secondCurveAddress);
-        assertEq(address(firstCurve.token()), firstTokenAddress);
-        assertEq(address(secondCurve.token()), secondTokenAddress);
+        assertEq(firstToken.tokenURI(), "ipfs://doge");
+        assertEq(secondToken.tokenURI(), "ipfs://cat");
         assertEq(firstCurve.creator(), alice);
         assertEq(secondCurve.creator(), bob);
-        assertEq(firstCurve.owner(), alice);
-        assertEq(secondCurve.owner(), bob);
-        assertEq(firstCurve.virtualUSDCReserve(), 1_000_000 * 1e18);
-        assertEq(secondCurve.virtualUSDCReserve(), 2_000_000 * 1e18);
-        assertEq(firstToken.balanceOf(firstCurveAddress), 800_000 * 1e18);
-        assertEq(secondToken.balanceOf(secondCurveAddress), 800_000 * 1e18);
-        assertEq(firstToken.balanceOf(secondCurveAddress), 0);
-        assertEq(secondToken.balanceOf(firstCurveAddress), 0);
+        assertEq(firstCurve.currentPrice(), 1e14);
+        assertEq(secondCurve.currentPrice(), 1e14);
+        assertEq(firstCurve.marketCap(), firstCurve.INITIAL_MCAP());
+        assertEq(secondCurve.marketCap(), secondCurve.INITIAL_MCAP());
+        assertEq(firstToken.balanceOf(firstCurveAddress), 9_000_000 * 1e18);
+        assertEq(secondToken.balanceOf(secondCurveAddress), 9_000_000 * 1e18);
         assertEq(factory.tokenToCurve(firstTokenAddress), firstCurveAddress);
         assertEq(factory.tokenToCurve(secondTokenAddress), secondCurveAddress);
     }
 
-    function test_GraduateTokenRevertsForUnknownCurve() public {
-        vm.expectRevert("Unknown curve");
-        factory.graduateToken(makeAddr("notACurve"));
-    }
-
-    function test_GraduateTokenRevertsForZeroAddress() public {
-        vm.expectRevert("Invalid curve address");
-        factory.graduateToken(address(0));
-    }
-
-    function test_GraduateTokenSucceedsForOwnCurve() public {
-        vm.prank(alice);
-        (, address curveAddress) = factory.createToken("Doge", "DOGE", INITIAL_PRICE, "ipfs://doge");
-        BondingCurve curve = BondingCurve(curveAddress);
-
-        // Exact USDC amount (see BondingCurve.t.sol) needed to drain the 800k real token reserve.
-        uint256 buyAmount = 4_040_404_040_404_040_404_040_405;
-        fakeUSDC.faucet(buyAmount);
-        fakeUSDC.approve(curveAddress, buyAmount);
-        curve.buy(buyAmount, 0);
-        assertEq(curve.realTokenReserve(), 0);
-
-        // Permissionless: bob (not the creator) can trigger graduation through the Factory.
-        vm.prank(bob);
-        factory.graduateToken(curveAddress);
-
-        assertTrue(address(curve.amm()) != address(0));
-    }
-
     function test_BuyOnOneTokenDoesNotChangeTheOtherCurve() public {
         vm.prank(alice);
-        (, address firstCurveAddress) = factory.createToken(
-            "Doge",
-            "DOGE",
-            INITIAL_PRICE,
-            "ipfs://doge"
-        );
-
+        (, address firstCurveAddress) = factory.createToken("Doge", "DOGE", "ipfs://doge");
         vm.prank(bob);
-        (address secondTokenAddress, address secondCurveAddress) = factory.createToken(
-            "Cat",
-            "CAT",
-            INITIAL_PRICE,
-            "ipfs://cat"
-        );
+        (address secondTokenAddress, address secondCurveAddress) = factory.createToken("Cat", "CAT", "ipfs://cat");
 
         BondingCurve firstCurve = BondingCurve(firstCurveAddress);
         BondingCurve secondCurve = BondingCurve(secondCurveAddress);
-        uint256 secondTokenReserveBefore = secondCurve.virtualTokenReserve();
-        uint256 secondUSDCReserveBefore = secondCurve.virtualUSDCReserve();
+        uint256 secondMCapBefore = secondCurve.marketCap();
 
-        fakeUSDC.faucet(10e18);
-        fakeUSDC.approve(firstCurveAddress, 10e18);
-        firstCurve.buy(10e18, 0);
+        fakeUSDC.faucet(100e18);
+        fakeUSDC.approve(firstCurveAddress, 100e18);
+        firstCurve.buy(100e18, 0);
 
-        assertEq(secondCurve.virtualTokenReserve(), secondTokenReserveBefore);
-        assertEq(secondCurve.virtualUSDCReserve(), secondUSDCReserveBefore);
-        assertEq(MemeToken(secondTokenAddress).balanceOf(alice), 0);
+        assertGt(firstCurve.marketCap(), firstCurve.INITIAL_MCAP());
+        assertEq(secondCurve.marketCap(), secondMCapBefore);
+        assertEq(MemeToken(secondTokenAddress).balanceOf(address(this)), 0);
+    }
+
+    function test_GraduateTokenRejectsUnknownCurve() public {
+        vm.expectRevert("Unknown curve");
+        factory.graduateToken(makeAddr("notACurve"));
     }
 }

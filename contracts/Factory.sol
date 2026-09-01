@@ -22,7 +22,6 @@ contract Factory {
 	function createToken(
 		string calldata name_,
 		string calldata symbol_,
-		uint256 initialPrice,
 		string calldata tokenURI_
 	) external returns (address tokenAddress, address curveAddress) {
 		MemeToken token = new MemeToken(name_, symbol_, tokenURI_);
@@ -30,7 +29,6 @@ contract Factory {
 			address(token),
 			fakeUSDC,
 			master,
-			initialPrice,
 			msg.sender
 		);
 

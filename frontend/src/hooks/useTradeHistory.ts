@@ -82,7 +82,31 @@ export function buildOhlcData(trades: Trade[], intervalSeconds = 5 * 60): OhlcPo
     candle.close = price;
   }
 
-  return [...candles.values()];
+  const populatedCandles = [...candles.values()];
+  if (populatedCandles.length === 0) return [];
+
+  const result: OhlcPoint[] = [];
+  let previousClose: number | undefined;
+  const endTime = Math.floor(Date.now() / 1000 / intervalSeconds) * intervalSeconds;
+
+  for (let time = populatedCandles[0].time; time <= endTime; time += intervalSeconds) {
+    const candle = candles.get(time);
+
+    if (candle) {
+      previousClose = candle.close;
+      result.push(candle);
+    } else if (previousClose !== undefined) {
+      result.push({
+        time,
+        open: previousClose,
+        high: previousClose,
+        low: previousClose,
+        close: previousClose,
+      });
+    }
+  }
+
+  return result;
 }
 
 export function useTradeHistory(curveAddress?: Address) {

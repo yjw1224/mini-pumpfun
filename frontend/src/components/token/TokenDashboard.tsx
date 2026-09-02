@@ -152,7 +152,9 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
     args: side === "buy" && amountIn > 0n ? [amountIn] : undefined,
     query: { enabled: readEnabled && side === "buy" && amountIn > 0n },
   });
-  const quote = side === "buy"
+  const availableBalance = side === "buy" ? usdcBalance : tokenBalance;
+  const exceedsBalance = amountIn > (availableBalance ?? 0n);
+  const quote = exceedsBalance ? undefined : side === "buy"
     ? buyQuote
     : virtualTokenReserve && virtualUSDCReserve && amountIn > 0n
       ? getSellAmountOut(amountIn, virtualTokenReserve, virtualUSDCReserve)
@@ -224,7 +226,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   }, [tradeReceipt]);
 
   function handleTrade() {
-    if (!curveAddress || !quote || amountIn === 0n || !validSlippage) return;
+    if (!curveAddress || !quote || amountIn === 0n || exceedsBalance || !validSlippage) return;
     approvalHandled.current = undefined;
     if (requiresApproval) {
       if (side === "buy") {

@@ -6,11 +6,12 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   suffix?: string;
 }
 
-export function Input({ label, suffix, className, id, ...props }: InputProps) {
+export function Input({ label, suffix, className, id, onChange, ...props }: InputProps) {
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
-        <label htmlFor={id} className="text-[13px] font-medium text-text-secondary">
+        <label htmlFor
+        ={id} className="text-[13px] font-medium text-text-secondary">
           {label}
         </label>
       )}
@@ -18,9 +19,14 @@ export function Input({ label, suffix, className, id, ...props }: InputProps) {
         <input
           id={id}
           className={cn(
-            "h-full w-full min-w-0 bg-transparent text-[15px] text-text-primary outline-none placeholder:text-text-muted font-financial",
+            "h-full w-full min-w-0 bg-transparent text-text-primary outline-none placeholder:text-text-muted font-financial",
+            id === "trade-amount" ? "text-xl" : "text-[15px]",
             className
           )}
+          onChange={(event) => {
+            if (id === "trade-amount" && !/^\d*\.?\d*$/.test(event.target.value)) return;
+            onChange?.(event);
+          }}
           {...props}
         />
         {suffix && (

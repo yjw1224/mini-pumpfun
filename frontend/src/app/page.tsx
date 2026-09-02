@@ -64,8 +64,8 @@ export default function Home() {
 
           <div className="mb-6 flex w-fit items-center rounded-md border border-border bg-surface p-1">
             {[
-              { value: "created", label: "생성순" },
-              { value: "mcap", label: "MCap순" },
+              { value: "created", label: "Latest" },
+              { value: "mcap", label: "Large MCap" },
             ].map((option) => {
               const isActive = sortMode === option.value;
 

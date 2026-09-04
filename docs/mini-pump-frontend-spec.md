@@ -366,16 +366,16 @@ Creator
 Sell MEME
 
 You pay
-MEME
-[ 1,000 ]
+fUSDC
+[ 10.00 ]
+≈ 2,000 MEME
 Balance: ...
-[10%] [25%] [50%] [MAX]
 
         ↓
 
-You receive
-USDC
-≈ ...
+Expected PnL
+fUSDC: +...
+Return: +...%
 
 Minimum received
 ...
@@ -399,6 +399,8 @@ Buy/Sell 모두 다음 관계를 유지한다.
 입력 자산 = You pay
 예상 결과 = You receive
 ```
+
+Sell은 `You pay` 입력을 fUSDC 기준으로 받는다. 입력창 바로 아래에 해당 fUSDC로 매도할 수 있는 예상 토큰 수량을 최대 소수점 2자리로 표시한다. 기존 `You receive` 영역은 `Expected PnL` 영역으로 바꾸고, 예상 수령 fUSDC와 평단 대비 수익률을 표시한다.
 
 생성되지 않은 값이나 아직 읽지 못한 값은 빈 placeholder를 유지한다.
 
@@ -438,7 +440,7 @@ Quote는 반드시 현재 컨트랙트의 view 함수 결과를 사용한다. �
 
 ### Sell 빠른 입력
 
-연결된 지갑의 MEME balance를 사용한다.
+연결된 지갑의 MEME balance를 사용해 10%, 25%, 50%, 100%에 해당하는 예상 fUSDC 금액을 입력한다.
 
 `10%`, `25%`, `50%`, `MAX`는 현재 token balance의 각각 10%, 25%, 50%, 100%를 `amountIn`으로 설정한다.
 

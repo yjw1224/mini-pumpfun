@@ -201,19 +201,38 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
     return held > 0n ? Number(formatUnits((costBasis * 10n ** 18n) / held, 18)) : undefined;
   }, [account, trades]);
 
+  const price = virtualTokenReserve && virtualUSDCReserve
+    ? (virtualUSDCReserve * 10n ** 18n) / virtualTokenReserve
+    : 0n;
   const amountIn = parseAmount(amount);
+  const sellTokenAmount = side === "sell" && price > 0n
+    ? (amountIn * 10n ** 18n) / price
+    : amountIn;
+  const tradeAmountIn = side === "sell" ? sellTokenAmount : amountIn;
   const slippageBps = Math.max(0, Math.round(Number(slippage) * 100));
   const validSlippage = Number.isFinite(slippageBps) && slippageBps <= 10_000;
   const { data: quote } = useReadContract({
     address: curveAddress,
     abi: bondingCurveAbi,
     functionName: side === "buy" ? "getBuyAmountOut" : "getSellAmountOut",
-    args: amountIn > 0n ? [amountIn] : undefined,
-    query: { enabled: readEnabled && amountIn > 0n },
+    args: tradeAmountIn > 0n ? [tradeAmountIn] : undefined,
+    query: { enabled: readEnabled && tradeAmountIn > 0n },
   });
   const availableBalance = side === "buy" ? usdcBalance : tokenBalance;
-  const exceedsBalance = amountIn > (availableBalance ?? 0n);
+  const exceedsBalance = tradeAmountIn > (availableBalance ?? 0n);
   const effectiveQuote = exceedsBalance ? undefined : quote;
+  const averagePriceWei = averagePrice !== undefined
+    ? BigInt(Math.round(averagePrice * 10 ** 18))
+    : undefined;
+  const sellCostBasis = averagePriceWei !== undefined
+    ? (averagePriceWei * tradeAmountIn) / 10n ** 18n
+    : undefined;
+  const expectedSellPnl = side === "sell" && effectiveQuote !== undefined && sellCostBasis !== undefined
+    ? effectiveQuote - sellCostBasis
+    : undefined;
+  const expectedSellReturn = expectedSellPnl !== undefined && sellCostBasis !== undefined && sellCostBasis > 0n
+    ? Number(expectedSellPnl) / Number(sellCostBasis)
+    : undefined;
   const minAmountOut = effectiveQuote && validSlippage
     ? (effectiveQuote * BigInt(BPS_DENOMINATOR - BigInt(slippageBps))) / BPS_DENOMINATOR
     : 0n;
@@ -221,11 +240,8 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   const protocolFee = (fee * 70n) / 100n;
   const creatorFee = fee - protocolFee;
   const allowance = side === "buy" ? usdcAllowance : tokenAllowance;
-  const requiresApproval = amountIn > 0n && (allowance ?? 0n) < amountIn;
+  const requiresApproval = tradeAmountIn > 0n && (allowance ?? 0n) < tradeAmountIn;
   const isGraduated = amm !== undefined && amm !== zeroAddress;
-  const price = virtualTokenReserve && virtualUSDCReserve
-    ? (virtualUSDCReserve * 10n ** 18n) / virtualTokenReserve
-    : 0n;
   const marketCap = (price * (totalSupply ?? 0n)) / 10n ** 18n;
   const progress = initialTokenReserve && realTokenReserve !== undefined
     ? Number(initialTokenReserve - realTokenReserve) / Number(initialTokenReserve)
@@ -271,9 +287,9 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
       address: curveAddress,
       abi: bondingCurveAbi,
       functionName: side === "buy" ? "buy" : "sell",
-      args: [amountIn, minAmountOut],
+      args: [tradeAmountIn, minAmountOut],
     });
-  }, [approvalReceipt, approvalHash, side, amountIn, minAmountOut, curveAddress, writeTrade]);
+  }, [approvalReceipt, approvalHash, side, tradeAmountIn, minAmountOut, curveAddress, writeTrade]);
 
   useEffect(() => {
     if (tradeReceipt) refetchDetails();
@@ -284,18 +300,19 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
     approvalHandled.current = undefined;
     if (requiresApproval) {
       if (side === "buy") {
-        writeApproval({ chainId: ANVIL_CHAIN_ID, address: FAKE_USDC_ADDRESS, abi: fakeUSDCAbi, functionName: "approve", args: [curveAddress, amountIn] });
+        writeApproval({ chainId: ANVIL_CHAIN_ID, address: FAKE_USDC_ADDRESS, abi: fakeUSDCAbi, functionName: "approve", args: [curveAddress, tradeAmountIn] });
       } else if (token) {
-        writeApproval({ chainId: ANVIL_CHAIN_ID, address: token, abi: memeTokenAbi, functionName: "approve", args: [curveAddress, amountIn] });
+        writeApproval({ chainId: ANVIL_CHAIN_ID, address: token, abi: memeTokenAbi, functionName: "approve", args: [curveAddress, tradeAmountIn] });
       }
       return;
     }
-    writeTrade({ chainId: ANVIL_CHAIN_ID, address: curveAddress, abi: bondingCurveAbi, functionName: side === "buy" ? "buy" : "sell", args: [amountIn, minAmountOut] });
+    writeTrade({ chainId: ANVIL_CHAIN_ID, address: curveAddress, abi: bondingCurveAbi, functionName: side === "buy" ? "buy" : "sell", args: [tradeAmountIn, minAmountOut] });
   }
 
   function setSellPercentage(percentage: number) {
     const balance = tokenBalance ?? 0n;
-    setAmount(formatUnits((balance * BigInt(percentage)) / 100n, 18));
+    const tokenAmount = (balance * BigInt(percentage)) / 100n;
+    setAmount(formatUnits((tokenAmount * price) / 10n ** 18n, 18));
   }
 
   function copyAddress() {
@@ -383,16 +400,28 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
             <div className="mt-5 space-y-4">
               <TradeAmountBox label="You pay">
                 <div className="mt-2 flex items-center gap-2">
-                  <Input id="trade-amount" label="" suffix={side === "buy" ? "fUSDC" : symbol ?? "Token"} inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={isLoading} />
+                  <Input id="trade-amount" label="" suffix="fUSDC" inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={isLoading} />
                 </div>
-                {isConnected && <p className="mt-2 text-[12px] text-text-secondary">Balance: {side === "buy" ? `${formatTokenAmount(usdcBalance ?? 0n)} fUSDC` : `${formatTokenAmount(tokenBalance ?? 0n)} ${symbol ?? "Token"}`}</p>}
+                {side === "sell" && <p className="mt-2 font-financial text-[12px] text-text-secondary">≈ {formatTokenAmount(tradeAmountIn, 2)} {symbol ?? "Token"}</p>}
+                {isConnected && <p className="mt-2 text-[12px] text-text-secondary">Balance: {side === "buy" ? `${formatTokenAmount(usdcBalance ?? 0n)} fUSDC` : `${formatUsd((tokenBalance ?? 0n) * price / 10n ** 18n, 2)} fUSDC`}</p>}
                 {side === "sell" && isConnected && <div className="mt-2 flex justify-end gap-1">{SELL_PERCENTAGES.map((percentage) => <button key={percentage} type="button" onClick={() => setSellPercentage(percentage)} disabled={isLoading || !tokenBalance} className="h-7 rounded border border-border-strong px-2 font-financial text-[12px] text-text-secondary hover:text-text-primary disabled:opacity-50">{percentage}%</button>)}<button type="button" onClick={() => setSellPercentage(100)} disabled={isLoading || !tokenBalance} className="h-7 rounded border border-border-strong px-2 font-financial text-[12px] text-text-secondary hover:text-text-primary disabled:opacity-50">MAX</button></div>}
               </TradeAmountBox>
 
               <div className="flex justify-center"><ArrowDown className="size-5 text-text-muted" /></div>
 
-              <TradeAmountBox label="You receive">
-                <p className="mt-2 font-financial text-xl text-text-primary">{effectiveQuote ? `≈ ${formatTokenAmount(effectiveQuote)} ${side === "buy" ? symbol ?? "Token" : "fUSDC"}` : ""}</p>
+              <TradeAmountBox label={side === "sell" ? "Expected PnL" : "You receive"}>
+                {side === "sell" ? (
+                  <>
+                    <p className={`mt-2 font-financial text-xl ${expectedSellPnl !== undefined && expectedSellPnl >= 0n ? "text-positive" : "text-negative"}`}>
+                      {expectedSellPnl === undefined ? "" : `${expectedSellPnl >= 0n ? "+" : "-"}${formatUsd(expectedSellPnl < 0n ? -expectedSellPnl : expectedSellPnl, 2)}`}
+                    </p>
+                    <p className={`mt-1 font-financial text-[13px] ${expectedSellReturn !== undefined && expectedSellReturn >= 0 ? "text-positive" : "text-negative"}`}>
+                      {expectedSellReturn === undefined ? "" : `${expectedSellReturn >= 0 ? "+" : ""}${formatPercent(expectedSellReturn)}`}
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-2 font-financial text-xl text-text-primary">{effectiveQuote ? `≈ ${formatTokenAmount(effectiveQuote)} ${symbol ?? "Token"}` : ""}</p>
+                )}
               </TradeAmountBox>
 
               <div className="grid grid-cols-2 gap-y-2 rounded-md bg-surface-elevated p-3 text-[13px]">

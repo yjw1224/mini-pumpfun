@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePublicClient } from "wagmi";
 import { formatUnits, getAbiItem, type Address, type Hash } from "viem";
-import { bondingCurveAbi, FACTORY_DEPLOY_BLOCK } from "@/lib/contracts";
+import { bondingCurveAbi, FACTORY_ADDRESS, FACTORY_DEPLOY_BLOCK, factoryAbi } from "@/lib/contracts";
 
 export type Trade = {
   timestamp: number;
@@ -33,6 +33,35 @@ export type OhlcPoint = {
 
 const tokensPurchasedEvent = getAbiItem({ abi: bondingCurveAbi, name: "TokensPurchased" });
 const tokensSoldEvent = getAbiItem({ abi: bondingCurveAbi, name: "TokensSold" });
+const tokenCreatedEvent = getAbiItem({ abi: factoryAbi, name: "TokenCreated" });
+
+export function buildAllChartData(
+  trades: Trade[],
+  createdAt: number,
+  initialPrice: number,
+  nowSeconds = Date.now() / 1000
+): ChartPoint[] {
+  const startTimestamp = Math.min(createdAt, nowSeconds);
+  const ageSeconds = Math.max(1, nowSeconds - startTimestamp);
+  const bucketCount = Math.min(60, Math.max(12, Math.ceil(ageSeconds / 3600)));
+  const intervalSeconds = ageSeconds / bucketCount;
+  let tradeIndex = 0;
+  let latestPrice: number | null = initialPrice;
+
+  return Array.from({ length: bucketCount + 1 }, (_, index) => {
+    const timestamp = index === bucketCount
+      ? nowSeconds
+      : startTimestamp + index * intervalSeconds;
+    const bucketEnd = index === bucketCount ? nowSeconds : timestamp;
+
+    while (tradeIndex < trades.length && trades[tradeIndex].timestamp <= bucketEnd) {
+      latestPrice = Number(formatUnits(trades[tradeIndex].price, 18));
+      tradeIndex += 1;
+    }
+
+    return { timestamp, price: latestPrice };
+  });
+}
 
 export function buildChartData(
   trades: Trade[],
@@ -171,4 +200,28 @@ export function useTradeHistory(curveAddress?: Address) {
   const trades = useMemo(() => query.data ?? [], [query.data]);
 
   return { ...query, trades };
+}
+
+export function useTokenCreatedAt(tokenAddress?: Address) {
+  const publicClient = usePublicClient();
+
+  return useQuery({
+    queryKey: ["tokenCreatedAt", tokenAddress, publicClient?.chain.id],
+    enabled: Boolean(tokenAddress && publicClient && FACTORY_ADDRESS),
+    staleTime: Infinity,
+    queryFn: async () => {
+      if (!publicClient || !tokenAddress) return undefined;
+      const logs = await publicClient.getLogs({
+        address: FACTORY_ADDRESS,
+        event: tokenCreatedEvent,
+        fromBlock: FACTORY_DEPLOY_BLOCK,
+        toBlock: "latest",
+      });
+      const createdLog = logs.find(
+        (log) => log.args.token?.toLowerCase() === tokenAddress.toLowerCase()
+      );
+      const block = createdLog?.blockNumber;
+      return block === undefined ? undefined : Number((await publicClient.getBlock({ blockNumber: block })).timestamp);
+    },
+  });
 }

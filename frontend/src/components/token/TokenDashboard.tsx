@@ -5,6 +5,7 @@ import { ArrowDown, CandlestickChart, Copy, LineChart, X } from "lucide-react";
 import {
   Line,
   LineChart as RechartsLineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -31,7 +32,7 @@ import {
 } from "@/lib/contracts";
 import { formatMarketCap, formatPercent, formatTokenAmount, formatUsd, truncateAddress } from "@/lib/format";
 import { toGatewayUrl } from "@/lib/ipfs";
-import { buildChartData, buildOhlcData, type ChartRange, useTradeHistory } from "@/hooks/useTradeHistory";
+import { buildAllChartData, buildChartData, buildOhlcData, type ChartRange, useTokenCreatedAt, useTradeHistory } from "@/hooks/useTradeHistory";
 import { TradeCandlestickChart } from "@/components/token/TradeCandlestickChart";
 
 const ANVIL_CHAIN_ID = 31337;
@@ -65,6 +66,65 @@ function formatMetadataValue(value: unknown) {
   if (value === null || value === undefined) return "";
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
+}
+
+function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-[13px] text-text-secondary">{label}</p>
+      <p className="mt-1 font-financial text-2xl font-semibold text-text-primary">{value}</p>
+    </div>
+  );
+}
+
+function ChartControls({
+  chartMode,
+  chartTimeframe,
+  setChartMode,
+  setChartTimeframe,
+}: {
+  chartMode: ChartMode;
+  chartTimeframe: ChartTimeframe;
+  setChartMode: (mode: ChartMode) => void;
+  setChartTimeframe: (timeframe: ChartTimeframe) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex rounded-md border border-border bg-surface p-0.5">
+        {([["1h", "1H"], ["24h", "24H"], ["all", "ALL"]] as const).map(([value, label]) => (
+          <button key={value} type="button" onClick={() => setChartTimeframe(value)} className={`rounded px-2 py-1 text-[11px] font-semibold ${chartTimeframe === value ? "bg-primary text-background" : "text-text-secondary hover:text-text-primary"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-1">
+        <button type="button" title="Recharts" aria-label="Recharts" onClick={() => setChartMode("recharts")} className={`flex size-8 items-center justify-center rounded-md ${chartMode === "recharts" ? "bg-surface-elevated text-primary" : "text-text-secondary hover:text-text-primary"}`}>
+          <LineChart className="size-4" />
+        </button>
+        <button type="button" title="TradingView-style" aria-label="TradingView-style" onClick={() => setChartMode("tradingview")} className={`flex size-8 items-center justify-center rounded-md ${chartMode === "tradingview" ? "bg-surface-elevated text-primary" : "text-text-secondary hover:text-text-primary"}`}>
+          <CandlestickChart className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <>
+      <span className="text-text-secondary">{label}</span>
+      <span className="text-right font-financial text-text-primary">{value}</span>
+    </>
+  );
+}
+
+function TradeAmountBox({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-border bg-surface p-3">
+      <p className="text-[13px] font-medium text-text-secondary">{label}</p>
+      {children}
+    </div>
+  );
 }
 
 export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
@@ -101,15 +161,45 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   const { data: realTokenReserve, refetch: refetchRealTokenReserve } = useReadContract({ address: curveAddress, abi: bondingCurveAbi, functionName: "realTokenReserve", query: { enabled: readEnabled } });
   const { data: initialTokenReserve, refetch: refetchInitialTokenReserve } = useReadContract({ address: curveAddress, abi: bondingCurveAbi, functionName: "INITIAL_TOKEN_RESERVE", query: { enabled: readEnabled } });
   const { data: totalSupply, refetch: refetchTotalSupply } = useReadContract({ address: curveAddress, abi: bondingCurveAbi, functionName: "TOTAL_SUPPLY", query: { enabled: readEnabled } });
+  const { data: initialMcap } = useReadContract({ address: curveAddress, abi: bondingCurveAbi, functionName: "INITIAL_MCAP", query: { enabled: readEnabled } });
   const { data: amm } = useReadContract({ address: curveAddress, abi: bondingCurveAbi, functionName: "amm", query: { enabled: readEnabled } });
   const { data: usdcBalance, refetch: refetchUsdcBalance } = useReadContract({ address: FAKE_USDC_ADDRESS, abi: fakeUSDCAbi, functionName: "balanceOf", args: accountArgs, query: { enabled: Boolean(account) && isAddress(FAKE_USDC_ADDRESS) } });
   const { data: usdcAllowance, refetch: refetchUsdcAllowance } = useReadContract({ address: FAKE_USDC_ADDRESS, abi: fakeUSDCAbi, functionName: "allowance", args: account && curveAddress ? [account, curveAddress] : undefined, query: { enabled: Boolean(account && curveAddress) && isAddress(FAKE_USDC_ADDRESS) } });
   const { data: tokenAllowance, refetch: refetchTokenAllowance } = useReadContract({ address: token, abi: memeTokenAbi, functionName: "allowance", args: account && curveAddress ? [account, curveAddress] : undefined, query: { enabled: Boolean(token && account && curveAddress) } });
 
   const { trades, isLoading: isChartLoading, refetch: refetchTradeHistory } = useTradeHistory(curveAddress);
-  const chartData = useMemo(() => chartTimeframe === "all" ? [] : buildChartData(trades, chartTimeframe), [chartTimeframe, trades]);
+  const { data: createdAt, isLoading: isCreatedAtLoading } = useTokenCreatedAt(token);
+  const initialPrice = initialMcap !== undefined && totalSupply !== undefined
+    ? Number(formatUnits((initialMcap * 10n ** 18n) / totalSupply, 18))
+    : 0;
+  const chartData = useMemo(() => chartTimeframe === "all" && createdAt !== undefined
+    ? buildAllChartData(trades, createdAt, initialPrice)
+    : chartTimeframe === "all" ? [] : buildChartData(trades, chartTimeframe),
+    [chartTimeframe, createdAt, initialPrice, trades]);
   const ohlcData = useMemo(() => buildOhlcData(trades), [trades]);
   const hasTradesInRange = chartData.some((point) => point.price !== null);
+  const averagePrice = useMemo(() => {
+    if (!account) return undefined;
+
+    const userTrades = trades.filter(
+      (trade) => trade.trader.toLowerCase() === account.toLowerCase()
+    );
+    let held = 0n;
+    let costBasis = 0n;
+
+    for (const trade of userTrades) {
+      if (trade.type === "buy") {
+        held += trade.tokenAmount;
+        costBasis += trade.usdcAmount;
+      } else if (held > 0n) {
+        const sold = trade.tokenAmount > held ? held : trade.tokenAmount;
+        costBasis -= (costBasis * sold) / held;
+        held -= sold;
+      }
+    }
+
+    return held > 0n ? Number(formatUnits((costBasis * 10n ** 18n) / held, 18)) : undefined;
+  }, [account, trades]);
 
   const amountIn = parseAmount(amount);
   const slippageBps = Math.max(0, Math.round(Number(slippage) * 100));
@@ -247,30 +337,20 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
           <div className="space-y-6">
             <Card>
               <div className="grid grid-cols-2 gap-6">
-                <div><p className="text-[13px] text-text-secondary">Price</p><p className="mt-1 font-financial text-2xl font-semibold text-text-primary">{formatUsd(price)}</p></div>
-                <div><p className="text-[13px] text-text-secondary">Market Cap</p><p className="mt-1 font-financial text-2xl font-semibold text-text-primary">{formatMarketCap(marketCap)}</p></div>
+                <Stat label="Price" value={formatUsd(price)} />
+                <Stat label="Market Cap" value={formatMarketCap(marketCap)} />
               </div>
             </Card>
 
             <Card>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-[15px] font-semibold text-text-primary">{symbol ?? "TOKEN"} / fUSDC Chart</h2>
-                <div className="flex items-center gap-2">
-                  <div className="flex rounded-md border border-border bg-surface p-0.5">
-                    {([ ["1h", "1H"], ["24h", "24H"], ["all", "ALL"] ] as const).map(([value, label]) => (
-                      <button key={value} type="button" disabled={value === "all"} onClick={() => setChartTimeframe(value)} className={`rounded px-2 py-1 text-[11px] font-semibold ${chartTimeframe === value ? "bg-primary text-background" : "text-text-secondary hover:text-text-primary"} disabled:cursor-not-allowed disabled:opacity-40`}>{label}</button>
-                    ))}
-                  </div>
-                  <div className="flex gap-1">
-                    <button type="button" title="Recharts" aria-label="Recharts" onClick={() => setChartMode("recharts")} className={`flex size-8 items-center justify-center rounded-md ${chartMode === "recharts" ? "bg-surface-elevated text-primary" : "text-text-secondary hover:text-text-primary"}`}><LineChart className="size-4" /></button>
-                    <button type="button" title="TradingView-style" aria-label="TradingView-style" onClick={() => setChartMode("tradingview")} className={`flex size-8 items-center justify-center rounded-md ${chartMode === "tradingview" ? "bg-surface-elevated text-primary" : "text-text-secondary hover:text-text-primary"}`}><CandlestickChart className="size-4" /></button>
-                  </div>
-                </div>
+                <ChartControls chartMode={chartMode} chartTimeframe={chartTimeframe} setChartMode={setChartMode} setChartTimeframe={setChartTimeframe} />
               </div>
               <div className="mt-4 h-64 border-y border-border">
                 {chartMode === "tradingview" ? (
                   ohlcData.length === 0 ? <div className="flex h-full items-center justify-center text-[13px] text-text-muted">아직 거래 내역이 없습니다.</div> : <TradeCandlestickChart data={ohlcData} />
-                ) : isChartLoading ? (
+                ) : isChartLoading || (chartTimeframe === "all" && isCreatedAtLoading) ? (
                   <div className="flex h-full items-center justify-center text-[13px] text-text-muted">불러오는 중...</div>
                 ) : !hasTradesInRange ? (
                   <div className="flex h-full items-center justify-center text-[13px] text-text-muted">아직 거래 내역이 없습니다.</div>
@@ -278,9 +358,10 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
                   <ResponsiveContainer width="100%" height="100%">
                     <RechartsLineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                       <XAxis dataKey="timestamp" tickFormatter={(value: number) => formatChartTime(value, { hour: "2-digit", minute: "2-digit" })} stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis dataKey="price" domain={["auto", "auto"]} tickFormatter={(value: number) => formatChartPrice(value)} stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} width={70} />
+                      <YAxis yAxisId="price" dataKey="price" domain={["auto", "auto"]} tickFormatter={(value: number) => formatChartPrice(value)} stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} width={70} />
                       <Tooltip labelFormatter={(label) => formatChartTime(Number(label), { hour: "2-digit", minute: "2-digit", second: "2-digit" })} formatter={(value) => [formatChartPrice(Number(value)), "Price"]} contentStyle={{ background: "var(--color-surface-elevated)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
-                      <Line type="linear" dataKey="price" stroke="var(--color-primary)" strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line yAxisId="price" type="linear" dataKey="price" stroke="var(--color-primary)" strokeWidth={2} dot={false} isAnimationActive={false} />
+                      {averagePrice !== undefined && <ReferenceLine yAxisId="price" y={averagePrice} stroke="var(--color-text-muted)" strokeDasharray="4 4" label={{ value: "Average Buy Price", fill: "var(--color-text-muted)", fontSize: 11, position: "insideTopLeft" }} />}
                     </RechartsLineChart>
                   </ResponsiveContainer>
                 )}
@@ -300,27 +381,25 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
               <button type="button" onClick={() => { setSide("sell"); setAmount(""); }} className={`pb-3 text-sm font-semibold ${side === "sell" ? "border-b-2 border-negative text-negative" : "text-text-secondary"}`}>Sell {symbol}</button>
             </div>
             <div className="mt-5 space-y-4">
-              <div className="rounded-md border border-border bg-surface p-3">
-                <p className="text-[13px] font-medium text-text-secondary">You pay</p>
+              <TradeAmountBox label="You pay">
                 <div className="mt-2 flex items-center gap-2">
                   <Input id="trade-amount" label="" suffix={side === "buy" ? "fUSDC" : symbol ?? "Token"} inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={isLoading} />
                 </div>
                 {isConnected && <p className="mt-2 text-[12px] text-text-secondary">Balance: {side === "buy" ? `${formatTokenAmount(usdcBalance ?? 0n)} fUSDC` : `${formatTokenAmount(tokenBalance ?? 0n)} ${symbol ?? "Token"}`}</p>}
                 {side === "sell" && isConnected && <div className="mt-2 flex justify-end gap-1">{SELL_PERCENTAGES.map((percentage) => <button key={percentage} type="button" onClick={() => setSellPercentage(percentage)} disabled={isLoading || !tokenBalance} className="h-7 rounded border border-border-strong px-2 font-financial text-[12px] text-text-secondary hover:text-text-primary disabled:opacity-50">{percentage}%</button>)}<button type="button" onClick={() => setSellPercentage(100)} disabled={isLoading || !tokenBalance} className="h-7 rounded border border-border-strong px-2 font-financial text-[12px] text-text-secondary hover:text-text-primary disabled:opacity-50">MAX</button></div>}
-              </div>
+              </TradeAmountBox>
 
               <div className="flex justify-center"><ArrowDown className="size-5 text-text-muted" /></div>
 
-              <div className="rounded-md border border-border bg-surface p-3">
-                <p className="text-[13px] font-medium text-text-secondary">You receive</p>
+              <TradeAmountBox label="You receive">
                 <p className="mt-2 font-financial text-xl text-text-primary">{effectiveQuote ? `≈ ${formatTokenAmount(effectiveQuote)} ${side === "buy" ? symbol ?? "Token" : "fUSDC"}` : ""}</p>
-              </div>
+              </TradeAmountBox>
 
               <div className="grid grid-cols-2 gap-y-2 rounded-md bg-surface-elevated p-3 text-[13px]">
-                <span className="text-text-secondary">Minimum received</span><span className="text-right font-financial text-text-primary">{effectiveQuote ? `${formatTokenAmount(minAmountOut)} ${side === "buy" ? symbol ?? "Token" : "fUSDC"}` : ""}</span>
-                <span className="text-text-secondary">Fee</span><span className="text-right font-financial text-text-primary">{fee ? `${formatTokenAmount(fee)} ${side === "buy" ? "fUSDC" : "fUSDC"}` : ""}</span>
-                <span className="text-text-secondary">Protocol</span><span className="text-right font-financial text-text-primary">{protocolFee ? `${formatTokenAmount(protocolFee)} fUSDC` : ""}</span>
-                <span className="text-text-secondary">Creator</span><span className="text-right font-financial text-text-primary">{creatorFee ? `${formatTokenAmount(creatorFee)} fUSDC` : ""}</span>
+                <DetailRow label="Minimum received" value={effectiveQuote ? `${formatTokenAmount(minAmountOut)} ${side === "buy" ? symbol ?? "Token" : "fUSDC"}` : ""} />
+                <DetailRow label="Fee" value={fee ? `${formatTokenAmount(fee)} fUSDC` : ""} />
+                <DetailRow label="Protocol" value={protocolFee ? `${formatTokenAmount(protocolFee)} fUSDC` : ""} />
+                <DetailRow label="Creator" value={creatorFee ? `${formatTokenAmount(creatorFee)} fUSDC` : ""} />
               </div>
 
               <Input id="slippage" label="Slippage tolerance" suffix="%" inputMode="decimal" placeholder="1.00" value={slippage} onChange={(event) => setSlippage(event.target.value)} disabled={isLoading} />

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { ArrowRight } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { useAccount, useReadContracts } from "wagmi";
 import { type Address } from "viem";
 import { AppShell } from "@/components/layout/AppShell";
@@ -15,10 +16,12 @@ function PortfolioToken({
   item,
   balance,
   address,
+  onChangePercent,
 }: {
   item: NonNullable<ReturnType<typeof useTokenList>["data"]>[number];
   balance: bigint;
   address: Address;
+  onChangePercent: (token: Address, changePercent: number | undefined) => void;
 }) {
   const { trades, isLoading } = useTradeHistory(item.curve);
   const userTrades = trades.filter(
@@ -44,6 +47,10 @@ function PortfolioToken({
   const value = (balance * item.price) / 10n ** 18n;
   const pnl = averagePrice ? value - (costBasis * balance) / (held || 1n) : undefined;
   const isPositive = pnl !== undefined && pnl >= 0n;
+
+  useEffect(() => {
+    onChangePercent(item.token, changePercent);
+  }, [changePercent, item.token, onChangePercent]);
 
   return (
     <Link
@@ -92,6 +99,8 @@ function PortfolioToken({
 }
 
 export default function PortfolioPage() {
+  const [sortMode, setSortMode] = useState<"profit" | "balance">("profit");
+  const [changePercentByToken, setChangePercentByToken] = useState<Record<string, number>>({});
   const { address, isConnected } = useAccount();
   const { data: tokens, isLoading: isLoadingTokens, isError } = useTokenList();
   const { data: balances, isLoading: isLoadingBalances } = useReadContracts({
@@ -123,6 +132,14 @@ export default function PortfolioPage() {
     return typeof balance === "bigint" && balance > 0n ? [{ item, balance }] : [];
   });
   const isLoading = isLoadingTokens || isLoadingBalances;
+  const onChangePercent = useCallback((token: Address, changePercent: number | undefined) => {
+    if (changePercent === undefined) return;
+    setChangePercentByToken((current) => ({ ...current, [token]: changePercent }));
+  }, []);
+  const sortedTokens = [...ownedTokens].sort((a, b) => {
+    if (sortMode === "balance") return b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0;
+    return (changePercentByToken[b.item.token] ?? -Infinity) - (changePercentByToken[a.item.token] ?? -Infinity);
+  });
 
   return (
     <AppShell>
@@ -131,7 +148,29 @@ export default function PortfolioPage() {
         <p className="mt-2 text-sm text-text-secondary">{ownedTokens.length} tokens</p>
       </div>
 
-      <h2 className="mb-4 text-lg font-semibold text-text-primary">My Tokens</h2>
+      <div className="mb-4 flex w-fit items-center rounded-md border border-border bg-surface p-1">
+        {[
+          { value: "profit", label: "수익률순" },
+          { value: "balance", label: "보유량순" },
+        ].map((option) => {
+          const isActive = sortMode === option.value;
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setSortMode(option.value as typeof sortMode)}
+              className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                isActive
+                  ? "bg-primary text-background"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
       {isLoading && <p className="text-sm text-text-secondary">불러오는 중...</p>}
       {isError && (
         <p className="text-sm text-negative">토큰 목록을 불러오지 못했습니다.</p>
@@ -141,15 +180,15 @@ export default function PortfolioPage() {
       )}
 
       <div className="grid grid-cols-[minmax(180px,1.7fr)_minmax(130px,1fr)_minmax(130px,1fr)_minmax(150px,1fr)_18px] items-center gap-4 px-4 text-[13px] text-text-secondary">
-        <span />
+        <span>Token</span>
         <span>Balance</span>
         <span>Value (fUSDC)</span>
         <span>PnL</span>
         <span />
       </div>
       <div className="mt-2 space-y-3">
-        {ownedTokens.map(({ item, balance }) => (
-          <PortfolioToken key={item.token} item={item} balance={balance} address={address} />
+        {sortedTokens.map(({ item, balance }) => (
+          <PortfolioToken key={item.token} item={item} balance={balance} address={address} onChangePercent={onChangePercent} />
         ))}
       </div>
     </AppShell>

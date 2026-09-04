@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, LineChart, Plus } from "lucide-react";
+import { Compass, LineChart, Plus, WalletCards } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/", label: "Explore", icon: Compass },
   { href: "/create", label: "Create", icon: Plus },
+  { href: "/portfolio", label: "Portfolio", icon: WalletCards },
 ];
 
 export function Sidebar() {

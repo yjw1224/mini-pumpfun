@@ -467,6 +467,84 @@ UI에 반드시 `Testnet Only` 또는 `FakeUSDC`임을 표시한다.
 
 ---
 
+# `/portfolio` — Token Dashboard
+
+현재 연결된 지갑이 보유하고 있는 모든 Meme Token을 보여준다.
+
+## 화면
+
+```text
+My Tokens
+3 tokens
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ [ IMAGE ]  MEME TOKEN          Balance          Value (fUSDC)   PnL    >  │
+│            Meme Token           12,345.00        $465.23         +$...     │
+│            MEME                 ≈ $465.23                        +49.3%  │
+├──────────────────────────────────────────────────────────────────────────┤
+│ [ IMAGE ]  CHIKA                Balance          Value (fUSDC)   PnL    >  │
+│            CHIIKAWA              5,000.00         $12.40          +$...     │
+│            CHIKA                 ≈ $12.40                         +22.9%  │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+샘플 이미지처럼 페이지 배경 위에 둥근 테두리의 가로형 토큰 카드를 세로로 나열한다. 카드 내부는 `토큰 이미지/이름/심볼`, `Balance`, `Value (fUSDC)`, `PnL`, 상세 이동 화살표의 고정 열 구조를 사용한다. 카드의 토큰 정보 영역에는 현재 보유량의 평가액을 `≈ $...`로 함께 표시한다.
+
+## 표시
+
+- 연결된 지갑 주소
+- 보유 중인 Meme Token 목록
+- tokenURI metadata image
+- Name
+- Symbol
+- 현재 지갑의 Token balance
+- 현재가 기준 보유 평가액 (`balance * current price`)
+- 거래 이력으로 계산한 평단
+- 현재가 대비 변동량 퍼센트 및 PnL
+- Token Dashboard 이동 화살표
+
+## 데이터
+
+Factory의 allTokens 또는 TokenCreated 이벤트를 통해 생성된 Token 목록을 조회한다.
+
+각 Token에 대해:
+
+```text
+token.balanceOf(user)
+```
+
+를 조회하여 현재 연결된 지갑의 보유량을 확인한다.
+
+보유량이 0인 Token은 목록에서 제외한다.
+
+별도의 holder mapping은 추가하지 않는다.
+
+동작
+
+Token을 선택하면:
+
+```text
+/portfolio
+    ↓
+/token/[address]
+```
+
+로 이동한다.
+
+지갑이 연결되지 않은 경우:
+
+```text
+Connect Wallet
+
+지갑을 연결하면 보유 중인 토큰을 확인할 수 있습니다.
+```
+
+를 표시한다.
+
+실제 보유 데이터가 없으면 임의의 Token을 표시하지 않고 빈 상태를 표시한다.
+
+---
+
 # 9. Graduation UI
 
 Bonding Curve의 graduation 상태를 확인한다.

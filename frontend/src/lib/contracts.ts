@@ -3,6 +3,7 @@ import { factoryAbi } from "@/abi/factory";
 import { bondingCurveAbi } from "@/abi/bondingCurve";
 import { memeTokenAbi } from "@/abi/memeToken";
 import { fakeUSDCAbi } from "@/abi/fakeUSDC";
+import { simpleAmmAbi } from "@/abi/simpleAmm";
 
 // Populated after Sepolia deployment (Phase 0 deploy step, currently pending).
 export const FACTORY_ADDRESS = (process.env.NEXT_PUBLIC_FACTORY_ADDRESS ??
@@ -15,4 +16,4 @@ export const FACTORY_DEPLOY_BLOCK = BigInt(
   process.env.NEXT_PUBLIC_FACTORY_DEPLOY_BLOCK ?? "0"
 );
 
-export { factoryAbi, bondingCurveAbi, memeTokenAbi, fakeUSDCAbi };
+export { factoryAbi, bondingCurveAbi, memeTokenAbi, fakeUSDCAbi, simpleAmmAbi };

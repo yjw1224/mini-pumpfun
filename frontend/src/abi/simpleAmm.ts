@@ -1,0 +1,88 @@
+export const simpleAmmAbi = [
+  {
+    type: "function",
+    name: "FEE",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "tokenReserve",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "usdcReserve",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "totalLPSupply",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "lpToken",
+    inputs: [],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getTokenToUSDCAmountOut",
+    inputs: [{ name: "amountIn", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "amountOut", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getUSDCToTokenAmountOut",
+    inputs: [{ name: "amountIn", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "amountOut", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "swapTokenForUSDC",
+    inputs: [
+      { name: "amountIn", type: "uint256", internalType: "uint256" },
+      { name: "minAmountOut", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "swapUSDCforToken",
+    inputs: [
+      { name: "amountIn", type: "uint256", internalType: "uint256" },
+      { name: "minAmountOut", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "addLiquidity",
+    inputs: [
+      { name: "tokenAmount", type: "uint256", internalType: "uint256" },
+      { name: "usdcAmount", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "removeLiquidity",
+    inputs: [{ name: "lpAmount", type: "uint256", internalType: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+] as const;

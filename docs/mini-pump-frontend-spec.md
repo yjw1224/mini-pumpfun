@@ -37,6 +37,7 @@ Add / Remove Liquidity
 ```text
 /
 ├── /create
+├── /swap
 ├── /token/[address]
 └── /token/[address]/liquidity
 ```
@@ -566,6 +567,8 @@ Graduated!
 
 Trading is now handled by SimpleAMM.
 
+Bonding Curve trading is disabled after graduation.
+
 [ Swap ]
 [ Liquidity ]
 ```
@@ -577,6 +580,8 @@ curve.amm()
 ```
 
 를 사용한다.
+
+Factory의 `TokenGraduated` 이벤트에는 token, curve, AMM 주소가 포함된다. 기존 `BondingCurve`는 graduation 이후에도 존재하지만 `buy()`와 `sell()`은 사용할 수 없다.
 
 ---
 
@@ -605,7 +610,7 @@ Minimum received
 [ 4.90 ]
 
 Fee
-1%
+0.5%
 
 Price Impact
 ...
@@ -650,7 +655,7 @@ Minimum received
 [ ... ]
 
 Fee
-1%
+0.5%
 
 Price Impact
 ...
@@ -675,6 +680,43 @@ Allowance 부족 시:
 ```solidity
 fakeUSDC.approve(ammAddress, amountIn)
 ```
+
+---
+
+# `/swap` — Standalone Swap
+
+Graduation된 토큰 중 하나를 선택해 SimpleAMM으로 바로 swap하는 단일 카드 화면이다.
+
+## 화면
+
+```text
+Swap                                                    ⚙
+
+You pay
+[ 0.00                                          MEME ▾ ]
+Balance: ...
+
+        ↓
+
+You receive
+≈ ...                                            fUSDC
+
+Minimum received
+...
+Fee (0.5%)
+...
+Price impact
+...
+
+[ SWAP ]
+```
+
+- `You pay`와 `You receive` 중 meme token 쪽의 selector에서 graduation된 토큰만 선택할 수 있다. 반대쪽은 항상 fUSDC다.
+- 중앙 화살표로 Token → fUSDC / fUSDC → Token 방향을 전환한다.
+- 우측 상단 설정 아이콘에서 slippage tolerance를 조정한다.
+- AMM 주소는 선택한 토큰의 `curve.amm()`으로 조회한다.
+- Quote, Fee, Price Impact, Approval, Transaction 흐름은 섹션 11-12와 동일하다.
+- graduation된 토큰이 없으면 빈 상태를 표시한다.
 
 ---
 
@@ -714,7 +756,7 @@ USDC
 사용자의 LP 지분:
 
 ```solidity
-liquidityShares[user]
+amm.lpToken().balanceOf(user)
 ```
 
 전체:
@@ -726,8 +768,19 @@ totalLPSupply
 Pool share:
 
 ```text
-liquidityShares[user] / totalLPSupply
+lpToken.balanceOf(user) / totalLPSupply
 ```
+
+AMM의 실제 pool 상태는 다음 public 값을 사용한다.
+
+```solidity
+amm.tokenReserve()
+amm.usdcReserve()
+amm.totalLPSupply()
+amm.lpToken()
+```
+
+graduation 시 초기 pool은 `BondingCurve`가 `initializePool()`로 생성한다. 초기 token과 FakeUSDC는 AMM으로 이동하고, 초기 LP Token은 curve 주소에 발행된다.
 
 실제 값이 존재하지 않는 경우 `...` 또는 빈 영역으로 유지하며 가짜 수치를 넣지 않는다.
 
@@ -759,7 +812,14 @@ Transaction:
 amm.addLiquidity(tokenAmount, usdcAmount)
 ```
 
-프론트에서는 현재 reserve 비율을 읽어 적절한 입력 비율을 표시한다. 실제 계약이 반환하는 사용량/초과분 처리 결과를 임의 값으로 예측하지 않는다.
+Allowance 부족 시 두 자산 모두 각각 AMM에 approve한다.
+
+```solidity
+token.approve(ammAddress, tokenAmount)
+fakeUSDC.approve(ammAddress, usdcAmount)
+```
+
+프론트에서는 현재 reserve 비율을 읽어 적절한 입력 비율을 표시한다. 입력 비율이 pool 비율과 다르면 컨트랙트가 실제 사용량을 비율에 맞게 조정하고, 초과 입력분은 사용하지 않는다. 실제 사용량과 LP 발행량은 `LiquidityAdded` 이벤트 또는 transaction 결과를 사용한다.
 
 ---
 
@@ -791,13 +851,15 @@ Transaction:
 amm.removeLiquidity(lpAmount)
 ```
 
+LP 지분은 별도 `LPToken` ERC20으로 관리한다. 제거 시 AMM이 사용자의 LP Token을 직접 burn하므로 LP Token approve는 필요하지 않다. 사용자의 LP 잔액은 `amm.lpToken().balanceOf(user)`로 확인한다.
+
 예상 반환량을 표시할 수 있는 경우 실제 pool reserve와 LP supply를 사용한다. 값이 아직 존재하지 않으면 빈 placeholder를 유지한다.
 
 ---
 
 # 16. Approval UX
 
-ERC20 allowance를 확인한다.
+Buy, Sell, AMM Swap, Add Liquidity처럼 AMM 또는 BondingCurve가 사용자의 ERC20을 `transferFrom`하는 경우 ERC20 allowance를 확인한다. Remove Liquidity는 LP Token approve가 필요 없다.
 
 ```text
 Allowance < amount
@@ -806,7 +868,7 @@ Allowance < amount
        ↓
 Approval confirmed
        ↓
-[ Buy / Sell / Swap ]
+[ Buy / Sell / Swap / Add Liquidity ]
 ```
 
 초기 MVP에서는 필요한 amount만 approve해도 충분하다.

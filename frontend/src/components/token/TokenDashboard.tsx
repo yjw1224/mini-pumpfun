@@ -139,6 +139,12 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   const [metadata, setMetadata] = useState<TokenMetadata | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const approvalHandled = useRef<string | undefined>(undefined);
+  const chartOverlayRef = useRef<HTMLDivElement>(null);
+  const chartFrameRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (chartFrameRef.current !== null) cancelAnimationFrame(chartFrameRef.current);
+  }, []);
 
   const { data: curve } = useReadContract({
     address: FACTORY_ADDRESS,
@@ -372,15 +378,47 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
                 ) : !hasTradesInRange ? (
                   <div className="flex h-full items-center justify-center text-[13px] text-text-muted">아직 거래 내역이 없습니다.</div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsLineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                  <div className="relative h-full">
+          
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsLineChart
+                        data={chartData}
+                        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                        onMouseMove={(state) => {
+                          const chartState = state as unknown as {
+                            activeCoordinate?: { x?: number };
+                            chartX?: number;
+                          };
+                          const hoverX = chartState.activeCoordinate?.x ?? chartState.chartX;
+                          if (typeof hoverX !== "number" || hoverX <= 0 || chartOverlayRef.current === null) return;
+                          if (chartFrameRef.current !== null) cancelAnimationFrame(chartFrameRef.current);
+                          chartFrameRef.current = requestAnimationFrame(() => {
+                            if (chartOverlayRef.current) {
+                              chartOverlayRef.current.style.left = `${hoverX}px`;
+                              chartOverlayRef.current.style.opacity = "1";
+                            }
+                            chartFrameRef.current = null;
+                          });
+                        }}
+                        onMouseLeave={() => {
+                          if (chartFrameRef.current !== null) cancelAnimationFrame(chartFrameRef.current);
+                          chartFrameRef.current = null;
+                          if (chartOverlayRef.current) chartOverlayRef.current.style.opacity = "0";
+                        }}
+                      >
                       <XAxis dataKey="timestamp" tickFormatter={(value: number) => formatChartTime(value, { hour: "2-digit", minute: "2-digit" })} stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
                       <YAxis yAxisId="price" dataKey="price" domain={["auto", "auto"]} tickFormatter={(value: number) => formatChartPrice(value)} stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} width={70} />
                       <Tooltip labelFormatter={(label) => formatChartTime(Number(label), { hour: "2-digit", minute: "2-digit", second: "2-digit" })} formatter={(value) => [formatChartPrice(Number(value)), "Price"]} contentStyle={{ background: "var(--color-surface-elevated)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
                       <Line yAxisId="price" type="linear" dataKey="price" stroke="var(--color-primary)" strokeWidth={2} dot={false} isAnimationActive={false} />
                       {averagePrice !== undefined && <ReferenceLine yAxisId="price" y={averagePrice} stroke="var(--color-text-muted)" strokeDasharray="4 4" label={{ value: "Average Buy Price", fill: "var(--color-text-muted)", fontSize: 11, position: "insideTopLeft" }} />}
-                    </RechartsLineChart>
-                  </ResponsiveContainer>
+                      </RechartsLineChart>
+                    </ResponsiveContainer>
+                    <div
+                      ref={chartOverlayRef}
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-y-0 right-0 bg-black/25 opacity-0"
+                    />
+                  </div>
                 )}
               </div>
             </Card>

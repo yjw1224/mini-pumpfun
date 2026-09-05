@@ -74,10 +74,10 @@ function PortfolioToken({
       </div>
       <div>
         <p className="font-financial text-xl font-semibold text-text-primary">
-          {formatTokenAmount(balance)}
+          {isLoading || !averagePrice ? "..." : formatUsd((averagePrice * held / (10n ** 18n)), 2)}
         </p>
         <p className="mt-1 font-financial text-[13px] text-text-secondary">
-          ≈ {isLoading || !averagePrice ? "..." : formatUsd((averagePrice * held / (10n ** 18n)), 2)}
+          {formatTokenAmount(balance)} {item.symbol}
         </p>
       </div>
       <div>

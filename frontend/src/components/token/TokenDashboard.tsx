@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, CandlestickChart, Copy, LineChart, X } from "lucide-react";
+import { ArrowDown, ArrowLeftRight, CandlestickChart, Copy, LineChart, X } from "lucide-react";
 import {
   Line,
   LineChart as RechartsLineChart,
@@ -43,6 +43,7 @@ const SELL_PERCENTAGES = [10, 25, 50] as const;
 type TradeSide = "buy" | "sell";
 type ChartMode = "recharts" | "tradingview";
 type ChartTimeframe = ChartRange | "all";
+type ChartMetric = "price" | "marketCap";
 type TokenMetadata = Record<string, unknown>;
 
 function parseAmount(value: string) {
@@ -134,13 +135,31 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
   const [side, setSide] = useState<TradeSide>("buy");
   const [chartMode, setChartMode] = useState<ChartMode>("recharts");
   const [chartTimeframe, setChartTimeframe] = useState<ChartTimeframe>("1h");
+  const [chartMetric, setChartMetric] = useState<ChartMetric>("price");
   const [amount, setAmount] = useState("");
   const [slippage, setSlippage] = useState(DEFAULT_SLIPPAGE);
   const [metadata, setMetadata] = useState<TokenMetadata | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const approvalHandled = useRef<string | undefined>(undefined);
   const chartOverlayRef = useRef<HTMLDivElement>(null);
+  const chartPriceRef = useRef<HTMLSpanElement>(null);
   const chartFrameRef = useRef<number | null>(null);
+
+  function formatChartMetricValue(tokenPrice: number) {
+    if (chartMetric === "price") return formatChartPrice(tokenPrice);
+    if (totalSupply === undefined) return "";
+    const priceWei = BigInt(Math.round(tokenPrice * 10 ** 18));
+    return formatMarketCap((priceWei * totalSupply) / 10n ** 18n);
+  }
+
+  function resetChartHover() {
+    if (chartFrameRef.current !== null) cancelAnimationFrame(chartFrameRef.current);
+    chartFrameRef.current = null;
+    if (chartOverlayRef.current) chartOverlayRef.current.style.opacity = "0";
+    if (chartPriceRef.current) {
+      chartPriceRef.current.textContent = chartLatestPrice !== undefined ? formatChartMetricValue(chartLatestPrice) : "";
+    }
+  }
 
   useEffect(() => () => {
     if (chartFrameRef.current !== null) cancelAnimationFrame(chartFrameRef.current);
@@ -184,6 +203,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
     [chartTimeframe, createdAt, initialPrice, trades]);
   const ohlcData = useMemo(() => buildOhlcData(trades), [trades]);
   const hasTradesInRange = chartData.some((point) => point.price !== null);
+  const chartLatestPrice = [...chartData].reverse().find((point) => point.price !== null)?.price ?? undefined;
   const averagePrice = useMemo(() => {
     if (!account) return undefined;
 
@@ -357,20 +377,30 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
 
       {!isGraduated ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="space-y-6">
-            <Card>
-              <div className="grid grid-cols-2 gap-6">
-                <Stat label="Price" value={formatUsd(price)} />
-                <Stat label="Market Cap" value={formatMarketCap(marketCap)} />
-              </div>
-            </Card>
-
-            <Card>
+          <div className="flex h-full min-h-0 flex-col gap-6">
+            <Card className="flex min-h-0 flex-1 flex-col">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-[15px] font-semibold text-text-primary">{symbol ?? "TOKEN"} / fUSDC Chart</h2>
+                <div>
+                  {/* <h3 className="text-[15px] font-semibold text-text-secondary">{symbol ?? "TOKEN"} / fUSDC</h3> */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      title="Toggle price and market cap"
+                      aria-label="Toggle price and market cap"
+                      onClick={() => setChartMetric((metric) => metric === "price" ? "marketCap" : "price")}
+                      className="flex size-4 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary"
+                    >
+                      <ArrowLeftRight className="size-3" />
+                    </button>
+                    <p className="text-[12px] text-text-secondary">{chartMetric === "price" ? "Price" : "Market Cap"}</p>
+                  </div>
+                  <span ref={chartPriceRef} className="mt-1 block font-financial text-3xl font-semibold leading-none text-text-primary">
+                    {chartLatestPrice !== undefined ? formatChartMetricValue(chartLatestPrice) : ""}
+                  </span>
+                </div>
                 <ChartControls chartMode={chartMode} chartTimeframe={chartTimeframe} setChartMode={setChartMode} setChartTimeframe={setChartTimeframe} />
               </div>
-              <div className="mt-4 h-64 border-y border-border">
+              <div className="mt-4 min-h-64 flex-1 border-y border-border">
                 {chartMode === "tradingview" ? (
                   ohlcData.length === 0 ? <div className="flex h-full items-center justify-center text-[13px] text-text-muted">아직 거래 내역이 없습니다.</div> : <TradeCandlestickChart data={ohlcData} />
                 ) : isChartLoading || (chartTimeframe === "all" && isCreatedAtLoading) ? (
@@ -378,7 +408,7 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
                 ) : !hasTradesInRange ? (
                   <div className="flex h-full items-center justify-center text-[13px] text-text-muted">아직 거래 내역이 없습니다.</div>
                 ) : (
-                  <div className="relative h-full">
+                  <div className="relative h-full" onMouseLeave={resetChartHover}>
           
                     <ResponsiveContainer width="100%" height="100%">
                       <RechartsLineChart
@@ -388,35 +418,44 @@ export function TokenDashboard({ tokenAddress }: { tokenAddress: string }) {
                           const chartState = state as unknown as {
                             activeCoordinate?: { x?: number };
                             chartX?: number;
+                            activeTooltipIndex?: number | string;
+                            activePayload?: Array<{ payload?: { price?: number | null } }>;
                           };
                           const hoverX = chartState.activeCoordinate?.x ?? chartState.chartX;
-                          if (typeof hoverX !== "number" || hoverX <= 0 || chartOverlayRef.current === null) return;
+                          const activeIndex = Number(chartState.activeTooltipIndex);
+                          const indexedPrice = Number.isInteger(activeIndex) ? chartData[activeIndex]?.price : undefined;
+                          const payloadPrice = chartState.activePayload?.[0]?.payload?.price;
+                          const hoverPrice = payloadPrice ?? indexedPrice;
+                          if ((typeof hoverX !== "number" || hoverX <= 0) && typeof hoverPrice !== "number") return;
                           if (chartFrameRef.current !== null) cancelAnimationFrame(chartFrameRef.current);
                           chartFrameRef.current = requestAnimationFrame(() => {
-                            if (chartOverlayRef.current) {
+                            if (chartOverlayRef.current && typeof hoverX === "number" && hoverX > 0) {
                               chartOverlayRef.current.style.left = `${hoverX}px`;
                               chartOverlayRef.current.style.opacity = "1";
+                            }
+                            if (chartPriceRef.current && typeof hoverPrice === "number") {
+                              chartPriceRef.current.textContent = formatChartMetricValue(hoverPrice);
                             }
                             chartFrameRef.current = null;
                           });
                         }}
-                        onMouseLeave={() => {
-                          if (chartFrameRef.current !== null) cancelAnimationFrame(chartFrameRef.current);
-                          chartFrameRef.current = null;
-                          if (chartOverlayRef.current) chartOverlayRef.current.style.opacity = "0";
-                        }}
+                        onMouseLeave={resetChartHover}
                       >
                       <XAxis dataKey="timestamp" tickFormatter={(value: number) => formatChartTime(value, { hour: "2-digit", minute: "2-digit" })} stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis yAxisId="price" dataKey="price" domain={["auto", "auto"]} tickFormatter={(value: number) => formatChartPrice(value)} stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} width={70} />
+                      <YAxis yAxisId="price" dataKey="price" domain={["auto", "auto"]} hide width={70} />
                       <Tooltip labelFormatter={(label) => formatChartTime(Number(label), { hour: "2-digit", minute: "2-digit", second: "2-digit" })} formatter={(value) => [formatChartPrice(Number(value)), "Price"]} contentStyle={{ background: "var(--color-surface-elevated)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
                       <Line yAxisId="price" type="linear" dataKey="price" stroke="var(--color-primary)" strokeWidth={2} dot={false} isAnimationActive={false} />
-                      {averagePrice !== undefined && <ReferenceLine yAxisId="price" y={averagePrice} stroke="var(--color-text-muted)" strokeDasharray="4 4" label={{ value: "Average Buy Price", fill: "var(--color-text-muted)", fontSize: 11, position: "insideTopLeft" }} />}
+                      {averagePrice !== undefined && <ReferenceLine yAxisId="price" y={averagePrice} stroke="var(--color-text-muted)" strokeDasharray="4 4" label={{ value: "Average Buy Price", fill: "var(--color-text-muted)", fontSize: 11, position: "insideTopRight" }} />}
                       </RechartsLineChart>
                     </ResponsiveContainer>
                     <div
                       ref={chartOverlayRef}
                       aria-hidden="true"
                       className="pointer-events-none absolute inset-y-0 right-0 bg-black/25 opacity-0"
+                    />
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-y-0 left-0 z-10 w-[90px] bg-[linear-gradient(to_right,var(--color-surface)_0%,transparent_100%)]"
                     />
                   </div>
                 )}
